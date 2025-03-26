@@ -1,9 +1,9 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: build-pipeline
+  name: docker-build-oci-ta
   labels:
-    build.appstudio.redhat.com/pipeline: build
+    build.appstudio.redhat.com/pipeline: docker-build-oci-ta
 spec:
   description: |
     This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
