@@ -78,6 +78,10 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
+  - default: ""
+    description: Name of a custom task that should be run after the after-clone-repository task
+    name: after-clone-repository-task
+    type: string
   results:
   - description: ""
     name: IMAGE_URL
@@ -139,12 +143,15 @@ spec:
     - name: basic-auth
       workspace: git-auth
   - name: after-clone-repository-hook
+    params:
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
     runAfter:
     - clone-repository
     taskRef:
       name: $(params.after-clone-repository-task)
     when:
-    - input: "$(params.after-clone-repository-task)"
+    - input: $(params.after-clone-repository-task)
       operator: notin
       values:
       - ""
