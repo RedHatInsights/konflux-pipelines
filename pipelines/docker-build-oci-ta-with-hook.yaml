@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: docker-build-oci-ta
+  name: docker-build-oci-ta-with-hook
   labels:
     build.appstudio.redhat.com/pipeline: docker-build-oci-ta
 spec:
