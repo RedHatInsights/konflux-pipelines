@@ -213,7 +213,7 @@ spec:
       - name: name
         value: buildah
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-buildah:0.4@sha256:86422171163daa790003828502d471710003a04e9afa534f1538b197ed7b0e7b
+        value: quay.io/konflux-ci/tekton-catalog/task-buildah:0.4@sha256:95581a2c2a198e930f48eb7a4d4c14f59f8ab46db45b4a6a3401812c173e644b
       - name: kind
         value: task
       resolver: bundles
@@ -424,7 +424,7 @@ spec:
       - name: name
         value: sast-coverity-check
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-sast-coverity-check:0.3@sha256:67a25f156ac7bd59030b9e148ad4c3fa2848ed2b7a084a4dac0b19e0eb9ef6e1
+        value: quay.io/konflux-ci/tekton-catalog/task-sast-coverity-check:0.3@sha256:e6a6b2573b430111056405678cd3ee18ab884d881eab534989156248ecaa19a9
       - name: kind
         value: task
       resolver: bundles
