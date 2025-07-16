@@ -108,6 +108,23 @@ spec:
   - description: Script run while executing the run-unit-tests custom task
     name: unit-tests-script
     type: string
+  # New parameters for unit test resources
+  - description: Memory request for the unit tests task
+    name: unit-tests-memory-request
+    type: string
+    default: "4Gi"
+  - description: Memory limit for the unit tests task
+    name: unit-tests-memory-limit
+    type: string
+    default: "4Gi"
+  - description: CPU request for the unit tests task
+    name: unit-tests-cpu-request
+    type: string
+    default: "2000m"
+  - description: CPU limit for the unit tests task
+    name: unit-tests-cpu-limit
+    type: string
+    default: "2000m"
   results:
   - description: ""
     name: IMAGE_URL
@@ -647,11 +664,11 @@ spec:
         name: unit-tests
         computeResources:
           requests:
-            memory: 6Gi
-            cpu: 2000m
+            memory: $(params.unit-tests-memory-request)
+            cpu: $(params.unit-tests-cpu-request)
           limits:
-            memory: 6Gi
-            cpu: 2000m
+            memory: $(params.unit-tests-memory-limit)
+            cpu: $(params.unit-tests-cpu-limit)
         securityContext:
           runAsUser: 0
         script: $(params.unit-tests-script)
