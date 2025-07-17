@@ -4,7 +4,7 @@
 # This pipeline supports dynamic environment variables for unit testing via the env-vars parameter.
 # Each service can specify any environment variables they need in KEY=VALUE format.
 #
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: docker-build
@@ -621,6 +621,10 @@ spec:
     params:
     - name: SOURCE_ARTIFACT
       value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
+    - name: unit-tests-script
+      value: $(params.unit-tests-script)
+    - name: env-vars
+      value: $(params.env-vars)
     runAfter:
     - clone-repository-oci-ta
     workspaces:
@@ -631,6 +635,13 @@ spec:
       - description: The Trusted Artifact URI pointing to the artifact with the application source code.
         name: SOURCE_ARTIFACT
         type: string
+      - description: Script run while executing the run-unit-tests custom task
+        name: unit-tests-script
+        type: string
+      - description: Environment variables in KEY=VALUE format (one per line)
+        name: env-vars
+        type: string
+        default: ""
       volumes:
       # New volume to store a copy of the source code accessible only to this Task.
       - name: workdir
@@ -650,7 +661,7 @@ spec:
       - image: registry.access.redhat.com/ubi8/ubi
         workingDir: /var/workdir
         name: unit-tests
-        computeResources:
+        resources:
           requests:
             memory: 6Gi
             cpu: 2000m
