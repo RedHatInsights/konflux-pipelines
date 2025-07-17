@@ -119,19 +119,19 @@ spec:
   - description: Memory request for the unit tests task
     name: unit-tests-memory-request
     type: string
-    default: "6G"
+    default: "4Gi"
   - description: Memory limit for the unit tests task
     name: unit-tests-memory-limit
     type: string
-    default: "6G"
+    default: "4Gi"
   - description: CPU request for the unit tests task
     name: unit-tests-cpu-request
     type: string
-    default: "2"
+    default: "2000m"
   - description: CPU limit for the unit tests task
     name: unit-tests-cpu-limit
     type: string
-    default: "2"
+    default: "2000m"
   results:
   - description: ""
     name: IMAGE_URL
