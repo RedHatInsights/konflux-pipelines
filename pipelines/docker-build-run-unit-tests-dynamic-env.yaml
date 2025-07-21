@@ -688,6 +688,13 @@ spec:
         - mountPath: /var/workdir
           name: workdir
           readOnly: false
+      computeResources:
+        requests:
+          memory: $(params.unit-tests-memory-request)
+          cpu: $(params.unit-tests-cpu-request)
+        limits:
+          memory: $(params.unit-tests-memory-limit)
+          cpu: $(params.unit-tests-cpu-limit)
       sidecars:
       steps:
       - name: use-trusted-artifact
@@ -698,13 +705,6 @@ spec:
       - image: registry.access.redhat.com/ubi8/ubi
         workingDir: /var/workdir
         name: unit-tests
-        computeResources:
-          requests:
-            memory: $(params.unit-tests-memory-request)
-            cpu: $(params.unit-tests-cpu-request)
-          limits:
-            memory: $(params.unit-tests-memory-limit)
-            cpu: $(params.unit-tests-cpu-limit)
         securityContext:
           runAsUser: 0
         env:
