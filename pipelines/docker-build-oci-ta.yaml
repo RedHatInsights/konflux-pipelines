@@ -82,6 +82,10 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
+  - name: sentry-auth-token
+    type: string
+    description: Injected Sentry auth token for build-args
+    default: ""
   results:
   - description: ""
     name: IMAGE_URL
