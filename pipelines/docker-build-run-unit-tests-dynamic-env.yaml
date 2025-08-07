@@ -714,6 +714,9 @@ spec:
           #!/bin/bash
           set -e
           
+          # Install make and other build essentials
+          dnf install -y make
+
           # Parse and export environment variables
           if [ -n "$ENV_VARS" ]; then
             while IFS= read -r line; do
