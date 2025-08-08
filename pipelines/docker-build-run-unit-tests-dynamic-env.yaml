@@ -702,22 +702,15 @@ spec:
         args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir
-      - image: registry.access.redhat.com/ubi8/ubi:8.9
+      - image: registry.access.redhat.com/ubi8/toolbox:latest
         workingDir: /var/workdir
         name: unit-tests
-        securityContext:
-          runAsUser: 0
         env:
         - name: ENV_VARS
           value: $(params.env-vars)
         script: |
           #!/bin/bash
           set -e
-          
-          # Install make using microdnf (more lightweight than dnf)
-          microdnf install -y make
-          # Clean up to keep the layer size small
-          microdnf clean all
 
           # Parse and export environment variables
           if [ -n "$ENV_VARS" ]; then
