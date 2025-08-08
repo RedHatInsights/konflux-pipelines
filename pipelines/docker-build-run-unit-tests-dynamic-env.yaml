@@ -708,9 +708,21 @@ spec:
         env:
         - name: ENV_VARS
           value: $(params.env-vars)
+        - name: GOPATH
+          value: /var/workdir/go
+        - name: GOCACHE
+          value: /var/workdir/.cache/go-build
+        - name: GOMODCACHE
+          value: /var/workdir/go/pkg/mod
         script: |
           #!/bin/bash
           set -e
+          
+          # Set up Go environment
+          mkdir -p /var/workdir/go/src
+          mkdir -p /var/workdir/go/pkg
+          mkdir -p /var/workdir/go/bin
+          mkdir -p /var/workdir/.cache/go-build
 
           # Parse and export environment variables
           if [ -n "$ENV_VARS" ]; then
