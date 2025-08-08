@@ -702,7 +702,7 @@ spec:
         args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir
-      - image: registry.access.redhat.com/ubi8/ubi
+      - image: registry.access.redhat.com/ubi8/ubi:8.9
         workingDir: /var/workdir
         name: unit-tests
         securityContext:
@@ -714,8 +714,10 @@ spec:
           #!/bin/bash
           set -e
           
-          # Install make and other build essentials
-          dnf install -y make
+          # Install make using microdnf (more lightweight than dnf)
+          microdnf install -y make
+          # Clean up to keep the layer size small
+          microdnf clean all
 
           # Parse and export environment variables
           if [ -n "$ENV_VARS" ]; then
