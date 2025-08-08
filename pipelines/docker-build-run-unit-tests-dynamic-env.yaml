@@ -705,6 +705,8 @@ spec:
       - image: registry.access.redhat.com/ubi8/go-toolset:latest
         workingDir: /var/workdir
         name: unit-tests
+        securityContext:
+          runAsUser: 0
         env:
         - name: ENV_VARS
           value: $(params.env-vars)
