@@ -726,6 +726,10 @@ spec:
           mkdir -p /var/workdir/go/bin
           mkdir -p /var/workdir/.cache/go-build
 
+          # Install Go dependencies
+          go mod download
+          go mod verify
+
           # Parse and export environment variables
           if [ -n "$ENV_VARS" ]; then
             while IFS= read -r line; do
