@@ -702,7 +702,7 @@ spec:
         args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir
-      - image: registry.access.redhat.com/ubi8/toolbox:latest
+      - image: registry.access.redhat.com/ubi8/go-toolset:latest
         workingDir: /var/workdir
         name: unit-tests
         env:
