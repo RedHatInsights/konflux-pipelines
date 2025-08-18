@@ -108,23 +108,6 @@ spec:
   - description: Script run while executing the run-unit-tests custom task
     name: unit-tests-script
     type: string
-  # New parameters for unit test resources
-  - description: Memory request for the unit tests task
-    name: unit-tests-memory-request
-    type: string
-    default: "4Gi"
-  - description: Memory limit for the unit tests task
-    name: unit-tests-memory-limit
-    type: string
-    default: "4Gi"
-  - description: CPU request for the unit tests task
-    name: unit-tests-cpu-request
-    type: string
-    default: "2000m"
-  - description: CPU limit for the unit tests task
-    name: unit-tests-cpu-limit
-    type: string
-    default: "2000m"
   results:
   - description: ""
     name: IMAGE_URL
@@ -652,13 +635,6 @@ spec:
         - mountPath: /var/workdir
           name: workdir
           readOnly: false
-      computeResources:
-        requests:
-          memory: $(params.unit-tests-memory-request)
-          cpu: $(params.unit-tests-cpu-request)
-        limits:
-          memory: $(params.unit-tests-memory-limit)
-          cpu: $(params.unit-tests-cpu-limit)
       sidecars:
       steps:
       - name: use-trusted-artifact
