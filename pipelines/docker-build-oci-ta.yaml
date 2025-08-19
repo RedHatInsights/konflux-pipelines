@@ -214,6 +214,7 @@ spec:
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+      #This additional secret is to access the konflux-UI sentry-auth secret :  https://konflux-ci.dev/docs/building/creating-secrets/#referencing-secrets-in-a-containerfile
     - name: ADDITIONAL_SECRET
       value: sentry-auth
     runAfter:
