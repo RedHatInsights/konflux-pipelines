@@ -2,7 +2,7 @@
 # README
 # This pipeline definition contains custom tasks which are identified as such near the end of this file.
 #
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: docker-build
