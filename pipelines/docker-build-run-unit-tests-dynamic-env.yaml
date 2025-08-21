@@ -115,23 +115,6 @@ spec:
     name: env-vars
     type: string
     default: ""
-  # Resource parameters for unit tests task
-  - description: Memory request for the unit tests task
-    name: unit-tests-memory-request
-    type: string
-    default: "4Gi"
-  - description: Memory limit for the unit tests task
-    name: unit-tests-memory-limit
-    type: string
-    default: "4Gi"
-  - description: CPU request for the unit tests task
-    name: unit-tests-cpu-request
-    type: string
-    default: "2000m"
-  - description: CPU limit for the unit tests task
-    name: unit-tests-cpu-limit
-    type: string
-    default: "2000m"
   results:
   - description: ""
     name: IMAGE_URL
@@ -644,14 +627,6 @@ spec:
       value: $(params.unit-tests-script)
     - name: env-vars
       value: $(params.env-vars)
-    - name: unit-tests-memory-request
-      value: $(params.unit-tests-memory-request)
-    - name: unit-tests-memory-limit
-      value: $(params.unit-tests-memory-limit)
-    - name: unit-tests-cpu-request
-      value: $(params.unit-tests-cpu-request)
-    - name: unit-tests-cpu-limit
-      value: $(params.unit-tests-cpu-limit)
     runAfter:
     - clone-repository-oci-ta
     workspaces:
