@@ -669,18 +669,6 @@ spec:
         name: env-vars
         type: string
         default: ""
-      - description: Memory request for the unit tests task
-        name: unit-tests-memory-request
-        type: string
-      - description: Memory limit for the unit tests task
-        name: unit-tests-memory-limit
-        type: string
-      - description: CPU request for the unit tests task
-        name: unit-tests-cpu-request
-        type: string
-      - description: CPU limit for the unit tests task
-        name: unit-tests-cpu-limit
-        type: string
       volumes:
       # New volume to store a copy of the source code accessible only to this Task.
       - name: workdir
@@ -690,13 +678,6 @@ spec:
         - mountPath: /var/workdir
           name: workdir
           readOnly: false
-      computeResources:
-        requests:
-          memory: $(params.unit-tests-memory-request)
-          cpu: $(params.unit-tests-cpu-request)
-        limits:
-          memory: $(params.unit-tests-memory-limit)
-          cpu: $(params.unit-tests-cpu-limit)
       sidecars:
       steps:
       - name: use-trusted-artifact
@@ -704,7 +685,7 @@ spec:
         args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir
-      - image: registry.access.redhat.com/ubi8/go-toolset:latest
+      - image: registry.access.redhat.com/ubi8/ubi-minimal:8.9
         workingDir: /var/workdir
         name: unit-tests
         securityContext:
@@ -728,9 +709,10 @@ spec:
           mkdir -p /var/workdir/go/bin
           mkdir -p /var/workdir/.cache/go-build
 
-          # Install Go dependencies
-          go mod download
-          go mod verify
+          # Enable required repositories and install make
+          microdnf install -y yum-utils
+          microdnf install -y --enablerepo=ubi-8-baseos make
+          microdnf clean all
 
           # Parse and export environment variables
           if [ -n "$ENV_VARS" ]; then
