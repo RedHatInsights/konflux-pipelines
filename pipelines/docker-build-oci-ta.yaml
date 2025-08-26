@@ -82,10 +82,6 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
-  - name: sentry-auth-token
-    type: string
-    description: Injected Sentry auth token for build-args
-    default: ""
   results:
   - description: ""
     name: IMAGE_URL
@@ -193,12 +189,16 @@ spec:
     - name: BUILD_ARGS
       value:
       - $(params.build-args[*])
+      - SENTRY_RELEASE=$(tasks.clone-repository.results.commit)
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
     - name: SOURCE_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+      #This additional secret is to access the konflux-UI sentry-auth secret :  https://konflux-ci.dev/docs/building/creating-secrets/#referencing-secrets-in-a-containerfile
+    - name: ADDITIONAL_SECRET
+      value: sentry-auth
     runAfter:
     - prefetch-dependencies
     taskRef:
