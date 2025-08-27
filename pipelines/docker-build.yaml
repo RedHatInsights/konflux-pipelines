@@ -104,6 +104,14 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
+  - default: []
+    description: Array of image labels to be applied to resulting image
+    name: labels
+    type: array
+  - default: []
+    description: Array of image annotations to be applied to resulting image
+    name: annotations
+    type: array
   results:
   - description: ""
     name: IMAGE_URL
@@ -212,6 +220,12 @@ spec:
       - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
+    - name: LABELS
+      value:
+      - $(params.labels[*])
+    - name: ANNOTATIONS
+      value:
+      - $(params.annotations[*])
     runAfter:
     - prefetch-dependencies
     taskRef:
