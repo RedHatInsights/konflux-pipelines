@@ -689,7 +689,7 @@ spec:
           mkdir -p /var/workdir/.cache/go-build
 
           # Enable required repositories and install make
-          microdnf -y --refresh --downloadonly --downloaddir=/tmp/rpms install libselinux libsemanage shadow-utils
+          microdnf -y --refresh --setopt=install_weak_deps=0 --setopt=tsflags=nodocs,notriggerin,notriggerun,notriggerpostin,notriggerpostun install libselinux libsemanage shadow-utils
           rpm -Uvh /tmp/rpms/libselinux-*.rpm || echo "libselinux FAILED"
           rpm -Uvh /tmp/rpms/libsemanage-*.rpm || echo "libsemanage FAILED"
           rpm -Uvh /tmp/rpms/shadow-utils-*.rpm || echo "shadow-utils FAILED"
