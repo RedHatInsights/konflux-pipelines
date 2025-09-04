@@ -685,7 +685,7 @@ spec:
           mkdir -p /var/workdir/.cache/go-build
 
           # Enable required repositories and install make
-          microdnf install -y shadow-utils
+          microdnf install -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs --noplugins --refresh libsemanage shadow-utils
           microdnf install -y yum-utils
           microdnf install -y --enablerepo=ubi-8-baseos make
           microdnf clean all
