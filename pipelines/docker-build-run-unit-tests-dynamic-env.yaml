@@ -676,7 +676,11 @@ spec:
           value: /var/workdir/go/pkg/mod
         script: |
           #!/bin/bash
-          set -e
+          set -euxo pipefail
+          id -u
+          whoami || true
+          test -w /var/lib/rpm && echo "rpmdb writable" || echo "rpmdb NOT writable"
+          test -w / && echo "/ writable" || echo "/ NOT writable"
           
           # Set up Go environment
           mkdir -p /var/workdir/go/src
