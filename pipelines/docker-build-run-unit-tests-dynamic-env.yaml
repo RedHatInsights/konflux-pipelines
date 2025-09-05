@@ -633,6 +633,35 @@ spec:
     - name: basic-auth
       workspace: git-auth
     taskSpec:
+      sidecars:
+      - computeResources: {}
+        env:
+        - name: POSTGRESQL_DATABASE
+          value: $(params.PGSQL_DATABASE)
+        - name: POSTGRESQL_USER
+          value: $(params.PGSQL_USER)
+        - name: POSTGRESQL_PASSWORD
+          value: $(params.PGSQL_PASSWORD)
+        image: quay.io/sclorg/postgresql-15-c9s:latest
+        name: chrome-db
+      - computeResources: {}
+        env:
+        - name: DATABASE_URL
+          value: postgresql://$(params.PGSQL_USER):$(params.PGSQL_PASSWORD)@localhost:$(params.PGSQL_PORT)/$(params.PGSQL_DATABASE)
+        - name: DATABASE_SSL
+          value: 'false'
+        - name: LOG_LEVEL
+          value: warn
+        - name: INIT_FRONTEND_API_TOKENS
+          value: default:development.unleash-insecure-frontend-api-token
+        - name: INIT_CLIENT_API_TOKENS
+          value: default:development.unleash-insecure-api-token
+        - name: INIT_ADMIN_API_TOKENS
+          value: '*:*.unleash-insecure'
+        - name: AUTH_TYPE
+          value: none
+        image: unleashorg/unleash-server:latest
+        name: run-feature-flags
       params:
       - description: The Trusted Artifact URI pointing to the artifact with the application source code.
         name: SOURCE_ARTIFACT
@@ -653,7 +682,6 @@ spec:
         - mountPath: /var/workdir
           name: workdir
           readOnly: false
-      sidecars:
       steps:
       - name: use-trusted-artifact
         image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
