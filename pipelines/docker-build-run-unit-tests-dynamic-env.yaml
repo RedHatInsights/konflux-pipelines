@@ -668,34 +668,8 @@ spec:
         env:
         - name: ENV_VARS
           value: $(params.env-vars)
-        - name: GOPATH
-          value: /var/workdir/go
-        - name: GOCACHE
-          value: /var/workdir/.cache/go-build
-        - name: GOMODCACHE
-          value: /var/workdir/go/pkg/mod
         script: |
           #!/bin/bash
-          set -euxo pipefail
-          id -u
-          whoami || true
-          test -w /var/lib/rpm && echo "rpmdb writable" || echo "rpmdb NOT writable"
-          test -w / && echo "/ writable" || echo "/ NOT writable"
-          
-          # Set up Go environment
-          mkdir -p /var/workdir/go/src
-          mkdir -p /var/workdir/go/pkg
-          mkdir -p /var/workdir/go/bin
-          mkdir -p /var/workdir/.cache/go-build
-
-          # Enable required repositories and install make
-          microdnf -y --refresh --setopt=install_weak_deps=0 --setopt=tsflags=nodocs,notriggerin,notriggerun,notriggerpostin,notriggerpostun install libselinux libsemanage shadow-utils
-          rpm -Uvh /tmp/rpms/libselinux-*.rpm || echo "libselinux FAILED"
-          rpm -Uvh /tmp/rpms/libsemanage-*.rpm || echo "libsemanage FAILED"
-          rpm -Uvh /tmp/rpms/shadow-utils-*.rpm || echo "shadow-utils FAILED"
-          microdnf install -y yum-utils
-          microdnf install -y --enablerepo=ubi-8-baseos make
-          microdnf clean all
 
           # Parse and export environment variables
           if [ -n "$ENV_VARS" ]; then
