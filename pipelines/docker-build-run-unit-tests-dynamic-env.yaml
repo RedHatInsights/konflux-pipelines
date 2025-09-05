@@ -132,12 +132,7 @@ spec:
     type: string
   - description: Unleash admin token
     name: UNLEASH_ADMIN_TOKEN
-    type: string    
-  # Dynamic environment variables
-  - description: Environment variables in KEY=VALUE format (one per line)
-    name: env-vars
     type: string
-    default: ""
   results:
   - description: ""
     name: IMAGE_URL
@@ -735,15 +730,6 @@ spec:
           value: $(params.env-vars)
         script: |
           #!/bin/bash
-
-          # Parse and export environment variables
-          if [ -n "$ENV_VARS" ]; then
-            while IFS= read -r line; do
-              if [ -n "$line" ] && [[ "$line" == *"="* ]]; then
-                export "$line"
-              fi
-            done <<< "$ENV_VARS"
-          fi
           
           # Execute the custom unit tests script
           $(params.unit-tests-script)
