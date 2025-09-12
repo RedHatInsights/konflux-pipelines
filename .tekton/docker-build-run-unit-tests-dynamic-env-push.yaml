@@ -1,0 +1,69 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/RedHatInsights/konflux-pipelines?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+      == "main"
+    pipelinesascode.tekton.dev/pipeline: pipelines/docker-build-run-unit-tests-dynamic-env.yaml
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: konflux-pipelines
+    appstudio.openshift.io/component: docker-build-run-unit-tests-dynamic-env
+    pipelines.appstudio.openshift.io/type: build
+  name: docker-build-run-unit-tests-dynamic-env-on-push
+  namespace: hcc-integrations-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/redhat-user-workloads/hcc-integrations-tenant/konflux-pipelines/docker-build-run-unit-tests-dynamic-env:{{revision}}
+  - name: dockerfile
+    value: dockerfiles/Dockerfile
+  - name: path-context
+    value: .
+  - name: PGSQL_USER
+    value: konflux-pipelines
+  - name: PGSQL_PASSWORD
+    value: konflux-pipelines
+  - name: PGSQL_HOSTNAME
+    value: localhost
+  - name: PGSQL_PORT
+    value: '5432'
+  - name: PGSQL_DATABASE
+    value: konflux-pipelines
+  - name: UNLEASH_API_TOKEN
+    value: default:development.unleash-insecure-api-token
+  - name: UNLEASH_ADMIN_TOKEN
+    value: '*:*.unleash-insecure-api-token'
+  - name: unit-tests-script
+    value: |
+      #!/bin/bash
+      echo "Hello, World!"
+  pipelineRef:
+    name: docker-build
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-docker-build-run-unit-tests-dynamic-env
+  workspaces:
+  - name: workspace
+    volumeClaimTemplate:
+      metadata:
+        creationTimestamp: null
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+      status: {}
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
