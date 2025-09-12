@@ -198,10 +198,8 @@ spec:
       value: $(params.image-expires-after)
     - name: COMMIT_SHA
       value: $(tasks.clone-repository.results.commit)
-    - name: BUILD_ARGS
-      value:
-      - $(params.build-args[*])
-      - SENTRY_RELEASE=$(tasks.clone-repository.results.commit)
+    - name: SENTRY_RELEASE
+      value: $(tasks.clone-repository.results.commit)
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
     - name: LABELS
