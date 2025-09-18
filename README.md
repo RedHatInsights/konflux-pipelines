@@ -92,14 +92,14 @@ All pipelines in this repository support the `build-container-additional-secret`
          value: "your-secret-name"
        # ... other parameters
    ```
+   
+   **Note:** This parameter is optional. If you don't specify it in your pipeline, it will default to looking for a secret named `build-container-additional-secret`. If no such secret exists in your Konflux environment, the build will proceed without mounting any additional secrets.
 
 3. **Use the secret in your Containerfile/Dockerfile:**
    ```dockerfile
    # The secret will be available as a mounted file
    RUN --mount=type=secret,id=your-secret-name/your-secret cat /run/secrets/your-secret-name/your-secret
    ```
-
-**Note:** This parameter is optional. If not specified, it defaults to looking for a secret named `build-container-additional-secret`. If no such secret exists, the build will proceed without mounting any additional secrets.
 
 ## Learn more
 
