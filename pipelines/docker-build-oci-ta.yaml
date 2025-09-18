@@ -43,7 +43,7 @@ spec:
     description: Path to the Dockerfile inside the context specified by parameter path-context
     name: dockerfile
     type: string
-  - default: sentry-auth
+  - default: build-container-additional-secret
     description: Name of secret in Konflux
     name: build-container-additional-secret
     type: string
