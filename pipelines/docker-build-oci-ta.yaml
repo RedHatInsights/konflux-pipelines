@@ -45,7 +45,7 @@ spec:
     type: string
   - default: sentry-auth
     description: Name of secret in Konflux
-    name: build-secrets
+    name: build-container-additional-secret
     type: string
   - default: "false"
     description: Force rebuild image
