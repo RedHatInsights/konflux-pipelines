@@ -73,7 +73,7 @@ spec:
 
 All pipelines in this repository support the `build-container-additional-secret` parameter, which allows you to provide an additional secret to the container build process.
 
-**Description:** Name of a Konflux-managed secret that will be mounted and made available to the container build process during the build step.
+**Description:** Name of a Konflux-managed secret that will be mounted and made available to the container build process when the `build-container` task runs.
 
 **Default value:** `build-container-additional-secret`
 
