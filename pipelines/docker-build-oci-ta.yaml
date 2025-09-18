@@ -43,6 +43,10 @@ spec:
     description: Path to the Dockerfile inside the context specified by parameter path-context
     name: dockerfile
     type: string
+  - default: build-container-additional-secret
+    description: Name of a Konflux-managed secret that will be mounted and made available to the container build process. See https://konflux-ci.dev/docs/building/creating-secrets/#referencing-secrets-in-a-containerfile
+    name: build-container-additional-secret
+    type: string
   - default: "false"
     description: Force rebuild image
     name: rebuild
@@ -215,9 +219,8 @@ spec:
       value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
     - name: CACHI2_ARTIFACT
       value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
-      #This additional secret is to access the konflux-UI sentry-auth secret :  https://konflux-ci.dev/docs/building/creating-secrets/#referencing-secrets-in-a-containerfile
     - name: ADDITIONAL_SECRET
-      value: sentry-auth
+      value: $(params.build-container-additional-secret)
     runAfter:
     - prefetch-dependencies
     taskRef:
