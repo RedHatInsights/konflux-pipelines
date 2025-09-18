@@ -44,7 +44,7 @@ spec:
     name: dockerfile
     type: string
   - default: build-container-additional-secret
-    description: Name of secret in Konflux
+    description: Name of a Konflux-managed secret that will be mounted and made available to the container build process. See https://konflux-ci.dev/docs/building/creating-secrets/#referencing-secrets-in-a-containerfile
     name: build-container-additional-secret
     type: string
   - default: "false"
