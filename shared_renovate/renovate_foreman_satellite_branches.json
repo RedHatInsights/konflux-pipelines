@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>konflux-ci/mintmaker/config/renovate/renovate.json"],
+  "baseBranchPatterns": ["master", "main", "/^foreman-.*$/", "/^SATELLITE-.*$/"],
+  "packageRules": [
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Enable only specific managers on foreman/satellite branches",
+      "enabledManagers": ["tekton", "dockerfile", "rpm-lockfile"]
+    }
+  ]
+}
