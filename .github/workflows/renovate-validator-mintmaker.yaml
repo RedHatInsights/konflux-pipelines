@@ -2,10 +2,16 @@ name: renovate-config-validator-mintmaker
 on:
   pull_request:
     branches:
-      - master
+      - main
+    paths:
+      - './renovate.json'
+      - './shared_renovate/**'
   push:
     branches:
-      - master
+      - main
+    paths:
+      - './renovate.json'
+      - './shared_renovate/**'
 
 jobs:
   validate:
@@ -23,5 +29,7 @@ jobs:
           podman run \
             --rm \
             -v ./renovate.json:/tmp/renovate.json \
+            -v ./shared_renovate:/tmp/shared_renovate \
             ${{ env.TEST_IMAGE }} \
-            /bin/bash -c 'renovate-config-validator /tmp/renovate.json'
+            /bin/bash -c 'renovate-config-validator -c \
+            'for config in $(ls -1 /tmp/renovate.json; ls -1 /tmp/shared_renovate/*.json); do echo "==== testing config $config ===="; renovate-config-validator $config; done'
