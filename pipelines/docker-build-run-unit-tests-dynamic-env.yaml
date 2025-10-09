@@ -564,8 +564,8 @@ spec:
       value: $(tasks.build-image-index.results.IMAGE_DIGEST)
     - name: ADDITIONAL_TAGS
       value:
-        - "$(tasks.clone-repository.results.commit)"
-        - "$(tasks.clone-repository.results.short-commit)"
+      - "$(tasks.clone-repository.results.commit)"
+      - "$(tasks.clone-repository.results.short-commit)"
     runAfter:
     - build-image-index
     taskRef:
