@@ -92,7 +92,7 @@ All pipelines in this repository support the `build-container-additional-secret`
          value: "your-secret-name"
        # ... other parameters
    ```
-   
+
    **Note:** This parameter is optional. If you don't specify it in your pipeline, it will default to looking for a secret named `build-container-additional-secret`. If no such secret exists in your Konflux environment, the build will proceed without mounting any additional secrets.
 
 3. **Use the secret in your Containerfile/Dockerfile:**
@@ -104,3 +104,26 @@ All pipelines in this repository support the `build-container-additional-secret`
 ## Learn more
 
 For complete details including MintMaker customization options and guidance on hosting remote pipelines, see the full blog post: [Easing the maintenance of Konflux build pipelines](https://gwenneg.com/2025/04/11/konflux-remote-pipeline.html).
+
+## Remote Renovate configuration
+
+The `renovate` folder in this repository contains files for remote Renovate configuration.
+This allows you to share and apply the same configuration across many repositories without repeating it.
+
+example:
+```
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>konflux-ci/mintmaker/config/renovate/renovate.json",
+    "github>RedHatInsights/konflux-pipelines/renovate/foreman_satellite/renovate.json"
+  ],
+  "tekton": {
+    "schedule": ["at any time"]
+  }
+}
+```
+
+This repository uses a [GitHub Action](.github/workflows/renovate-mintmaker-config-validator.yaml) that automatically checks on every pull request for syntax errors in all `renovate.json` files.
+
+Official renovate configuration on [extends](https://docs.renovatebot.com/configuration-options/#extends).
