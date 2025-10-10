@@ -4,14 +4,12 @@ on:
     branches:
       - main
     paths:
-      - './renovate.json'
-      - './renovate/**'
+      - '**renovate.json'
   push:
     branches:
       - main
     paths:
-      - './renovate.json'
-      - './renovate/**'
+      - '**renovate.json'
 
 jobs:
   validate:
@@ -32,4 +30,4 @@ jobs:
             -v ./renovate:/tmp/renovate \
             ${{ env.TEST_IMAGE }} \
             /bin/bash -c 'renovate-config-validator -c \
-            'for config in $(ls -1 /tmp/renovate.json; ls -1 /tmp/renovate/*/*.json); do echo "==== testing config $config ===="; renovate-config-validator $config; done'
+            'for config in $(find /tmp/ -name renovate.json); do echo "==== testing config $config ===="; renovate-config-validator $config; done'

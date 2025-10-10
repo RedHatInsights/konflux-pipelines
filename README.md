@@ -105,9 +105,10 @@ All pipelines in this repository support the `build-container-additional-secret`
 
 For complete details including MintMaker customization options and guidance on hosting remote pipelines, see the full blog post: [Easing the maintenance of Konflux build pipelines](https://gwenneg.com/2025/04/11/konflux-remote-pipeline.html).
 
-# Remote renovate configuration
+## Remote Renovate configuration
 
-To not repeat same renovate.json configuration in repositories, it is possible to reference renovate.json files from this repository in other git repositories.
+The `renovate` folder in this repository contains files for remote Renovate configuration.
+This allows you to share and apply the same configuration across many repositories without repeating it.
 
 example:
 ```
@@ -122,6 +123,7 @@ example:
   }
 }
 ```
-There is [github action](.github/workflows/renovate-mintmaker-config-validator.yaml) configured for this repo, which runs on every pull request and change to renovate.json and remote renovate files stored in renovate/ directory and checks for syntax errors.
 
-Official renovate configuration on [extends](remote_shared_renovate_config).
+This repository uses a [GitHub Action](.github/workflows/renovate-mintmaker-config-validator.yaml) that automatically checks on every pull request for syntax errors in all `renovate.json` files.
+
+Official renovate configuration on [extends](https://docs.renovatebot.com/configuration-options/#extends).
