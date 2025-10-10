@@ -29,5 +29,8 @@ jobs:
             -v ./renovate.json:/tmp/renovate.json \
             -v ./renovate:/tmp/renovate \
             ${{ env.TEST_IMAGE }} \
-            /bin/bash -c 'renovate-config-validator -c \
-            'for config in $(find /tmp/ -name renovate.json); do echo "==== testing config $config ===="; renovate-config-validator $config; done'
+            /bin/bash -c \
+              'for config in $(find /tmp/ -name renovate.json); \
+              do echo "==== testing config $config ===="; \
+              renovate-config-validator $config; \
+              done'
