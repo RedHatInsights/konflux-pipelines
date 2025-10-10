@@ -1,8 +1,6 @@
 name: renovate-mintmaker-config-validator
 on:
   pull_request:
-    branches:
-      - main
     paths:
       - '**renovate.json'
   push:
