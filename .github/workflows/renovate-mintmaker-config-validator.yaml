@@ -26,8 +26,8 @@ jobs:
         run: |
           podman run \
             --rm \
-            -v ./renovate.json:/tmp/renovate.json \
-            -v ./renovate:/tmp/renovate \
+            -v ./renovate.json:/tmp/renovate.json:z \
+            -v ./renovate:/tmp/renovate:z \
             ${{ env.TEST_IMAGE }} \
-            /bin/bash -c 'renovate-config-validator -c \
+            /bin/bash -c \
             'for config in $(find /tmp/ -name renovate.json); do echo "==== testing config $config ===="; renovate-config-validator $config; done'
