@@ -1,5 +1,7 @@
 name: renovate-mintmaker-config-validator
 on:
+  workflow_call:
+
   pull_request:
     branches:
       - main
@@ -26,8 +28,7 @@ jobs:
         run: |
           podman run \
             --rm \
-            -v ./renovate.json:/tmp/renovate.json \
-            -v ./renovate:/tmp/renovate \
+            -v ./:/src:z \
             ${{ env.TEST_IMAGE }} \
-            /bin/bash -c 'renovate-config-validator -c \
-            'for config in $(find /tmp/ -name renovate.json); do echo "==== testing config $config ===="; renovate-config-validator $config; done'
+            /bin/bash -c \
+            'for config in $(find /src -name renovate.json); do echo "==== testing config $config ===="; renovate-config-validator $config; done'
