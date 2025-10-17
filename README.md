@@ -115,8 +115,8 @@ example:
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>konflux-ci/mintmaker/config/renovate/renovate.json",
-    "github>RedHatInsights/konflux-pipelines/renovate/foreman_satellite/renovate.json"
+    "github>konflux-ci/mintmaker//config/renovate/renovate.json",
+    "github>RedHatInsights/konflux-pipelines//renovate/foreman_satellite/renovate.json"
   ],
   "tekton": {
     "schedule": ["at any time"]
