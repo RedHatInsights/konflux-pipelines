@@ -740,10 +740,6 @@ spec:
         - description: Proxy routes JSON configuration
           name: PROXY_ROUTES_JSON
           type: string
-      hostAliases:
-        - ip: "127.0.0.1"
-          hostnames:
-            - "stage.foo.redhat.com"
       volumes:
         - name: workdir
           emptyDir: {}
