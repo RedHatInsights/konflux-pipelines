@@ -146,6 +146,30 @@ spec:
           "is_chrome": true
         }
       }
+  - description: Application port (default 8000)
+    name: e2e-app-port
+    type: string
+    default: "8000"
+  - description: Playwright image to use for testing
+    name: e2e-playwright-image
+    type: string
+    default: "quay.io/btweed/playwright_e2e:latest"
+  - description: Chrome dev image
+    name: e2e-chrome-dev-image
+    type: string
+    default: "quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest"
+  - description: Frontend proxy image
+    name: e2e-proxy-image
+    type: string
+    default: "quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest"
+  - description: Actual stage environment hostname (for catch-all proxy)
+    name: e2e-stage-actual-hostname
+    type: string
+    default: ""
+  - description: HCC environment URL
+    name: e2e-hcc-env-url
+    type: string
+    default: ""
   results:
   - description: ""
     name: IMAGE_URL
@@ -711,6 +735,18 @@ spec:
         value: $(params.e2e-password)
       - name: PROXY_ROUTES_JSON
         value: $(params.proxy-routes-json)
+      - name: APP_PORT
+        value: $(params.e2e-app-port)
+      - name: PLAYWRIGHT_IMAGE
+        value: $(params.e2e-playwright-image)
+      - name: CHROME_DEV_IMAGE
+        value: $(params.e2e-chrome-dev-image)
+      - name: PROXY_IMAGE
+        value: $(params.e2e-proxy-image)
+      - name: STAGE_ACTUAL_HOSTNAME
+        value: $(params.e2e-stage-actual-hostname)
+      - name: HCC_ENV_URL
+        value: $(params.e2e-hcc-env-url)
     runAfter:
       - clone-repository-oci-ta
       - build-image-index
@@ -740,6 +776,24 @@ spec:
         - description: Proxy routes JSON configuration
           name: PROXY_ROUTES_JSON
           type: string
+        - description: Application port (default 8000)
+          name: APP_PORT
+          type: string
+        - description: Playwright image to use for testing
+          name: PLAYWRIGHT_IMAGE
+          type: string
+        - description: Chrome dev image
+          name: CHROME_DEV_IMAGE
+          type: string
+        - description: Frontend proxy image
+          name: PROXY_IMAGE
+          type: string
+        - description: Actual stage environment hostname (for catch-all proxy)
+          name: STAGE_ACTUAL_HOSTNAME
+          type: string
+        - description: HCC environment URL
+          name: HCC_ENV_URL
+          type: string
       volumes:
         - name: workdir
           emptyDir: {}
@@ -754,32 +808,373 @@ spec:
             name: workdir
             readOnly: false
       sidecars:
-        - image: quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest
+        - image: $(params.PROXY_IMAGE)
           name: frontend-dev-proxy
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              #!/bin/sh
+              echo "Waiting for /config/routes to be available..."
+              timeout=60
+              elapsed=0
+              while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
+                echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
+                sleep 2
+                elapsed=$((elapsed + 2))
+              done
+
+              if [ ! -f /config/routes ]; then
+                echo "ERROR: /config/routes not found after ${timeout} seconds"
+                exit 1
+              fi
+
+              echo "Config file found!"
+              echo "Routes content:"
+              cat /config/routes
+
+              # Export LOCAL_ROUTES environment variable from the file
+              export LOCAL_ROUTES="$(cat /config/routes)"
+              echo "LOCAL_ROUTES environment variable set"
+
+              # Check if Caddyfile exists and contains {$LOCAL_ROUTES} placeholder
+              echo "Checking for {$LOCAL_ROUTES} placeholder in Caddyfile..."
+              if [ ! -f /etc/caddy/Caddyfile ]; then
+                echo "ERROR: /etc/caddy/Caddyfile not found!"
+                exit 1
+              fi
+
+              echo "Original Caddyfile:"
+              cat /etc/caddy/Caddyfile
+
+              if ! grep -q '{$LOCAL_ROUTES}' /etc/caddy/Caddyfile; then
+                echo "ERROR: {$LOCAL_ROUTES} placeholder not found in Caddyfile!"
+                echo "The Caddyfile must contain {$LOCAL_ROUTES} where routes should be injected."
+                exit 1
+              fi
+
+              echo "Found {$LOCAL_ROUTES} placeholder, performing manual substitution..."
+
+              # Check for required tools
+              echo "Checking for required tools..."
+              for tool in awk sed grep cat; do
+                if ! command -v $tool >/dev/null 2>&1; then
+                  echo "ERROR: Required tool '$tool' not found in container!"
+                  exit 1
+                fi
+              done
+              echo "All required tools available"
+
+              # Manually substitute all environment variables in the Caddyfile
+              # This gives us full visibility of the final config before Caddy starts
+
+              # Read the routes and properly indent them (4 spaces to match Caddyfile indentation)
+              sed 's/^/    /' /config/routes > /tmp/routes_indented.txt
+
+              # Substitute {$LOCAL_ROUTES} with actual routes, and other env vars
+              awk -v hcc_env="$HCC_ENV" -v proxy_port="$PROXY_PORT" -v hcc_env_url="$HCC_ENV_URL" '
+              BEGIN {
+                while ((getline line < "/tmp/routes_indented.txt") > 0) {
+                  routes = routes line "\n"
+                }
+                close("/tmp/routes_indented.txt")
+                # Remove trailing newline
+                sub(/\n$/, "", routes)
+              }
+              {
+                line = $0
+                # Replace {$LOCAL_ROUTES}
+                if (line ~ /\{\$LOCAL_ROUTES\}/) {
+                  print routes
+                } else {
+                  # Replace other environment variables
+                  gsub(/\{\$HCC_ENV\}/, hcc_env, line)
+                  gsub(/\{\$PROXY_PORT\}/, proxy_port, line)
+                  gsub(/\{\$HCC_ENV_URL\}/, hcc_env_url, line)
+                  print line
+                }
+              }
+              ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
+
+              mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
+
+              # Enable debug logging and admin API
+              echo "Enabling debug mode and admin API..."
+
+              # Change 'admin off' to 'admin :2019' to enable admin API
+              sed -i 's/admin off/admin :2019/g' /etc/caddy/Caddyfile
+
+              # Add debug to global options block if not already present
+              if ! grep -q "debug" /etc/caddy/Caddyfile; then
+                # Insert 'debug' after the first opening brace
+                sed -i '1,/^{/s/^{/{\n debug/' /etc/caddy/Caddyfile
+              fi
+
+              # Replace stage.foo.redhat.com in catch-all handler with actual stage hostname
+              echo "Configuring catch-all handler to use actual stage environment..."
+              if [ -n "$STAGE_ACTUAL_HOSTNAME" ]; then
+                echo "Replacing stage.foo.redhat.com with ${STAGE_ACTUAL_HOSTNAME} in catch-all handler"
+                sed -i "s|https://stage\.foo\.redhat\.com|https://${STAGE_ACTUAL_HOSTNAME}|g" /etc/caddy/Caddyfile
+              else
+                echo "WARNING: STAGE_ACTUAL_HOSTNAME not set, catch-all will use stage.foo.redhat.com (may fail due to hostAliases)"
+              fi
+
+              # fix formatting of Caddyfile
+              caddy fmt --overwrite /etc/caddy/Caddyfile
+
+              echo "Final Caddyfile (after LOCAL_ROUTES substitution):"
+              cat /etc/caddy/Caddyfile
+
+              # Wait for insights-chrome-dev to be ready on port 9912
+              echo "Waiting for insights-chrome-dev to be ready on port 9912..."
+              max_wait=60
+              elapsed=0
+              while [ $elapsed -lt $max_wait ]; do
+                if wget -q -O /dev/null --timeout=2 http://127.0.0.1:9912 2>/dev/null; then
+                  echo "insights-chrome-dev is ready!"
+                  break
+                fi
+                echo "Waiting for insights-chrome-dev... ($elapsed/$max_wait seconds)"
+                sleep 2
+                elapsed=$((elapsed + 2))
+              done
+
+              if [ $elapsed -ge $max_wait ]; then
+                echo "ERROR: insights-chrome-dev did not become ready after ${max_wait} seconds"
+                exit 1
+              fi
+
+              # Wait for run-application to be ready on port 8000
+              echo "Waiting for run-application to be ready on port 8000..."
+              elapsed=0
+              while [ $elapsed -lt $max_wait ]; do
+                if wget -q -O /dev/null --timeout=2 http://127.0.0.1:8000 2>/dev/null; then
+                  echo "run-application is ready!"
+                  break
+                fi
+                echo "Waiting for run-application... ($elapsed/$max_wait seconds)"
+                sleep 2
+                elapsed=$((elapsed + 2))
+              done
+
+              if [ $elapsed -ge $max_wait ]; then
+                echo "WARNING: run-application did not become ready after ${max_wait} seconds"
+                exit 1
+              fi
+
+              echo "Starting frontend-development-proxy..."
+              caddy run --config /etc/caddy/Caddyfile
           env:
             - name: HTTP_PROXY
               value: $(params.HTTP_PROXY)
             - name: HTTPS_PROXY
               value: $(params.HTTP_PROXY)
+            - name: HCC_ENV
+              value: "stage"
+            - name: PROXY_PORT
+              value: "1337"
+            - name: HCC_ENV_URL
+              value: $(params.HCC_ENV_URL)
+            - name: STAGE_ACTUAL_HOSTNAME
+              value: $(params.STAGE_ACTUAL_HOSTNAME)
           securityContext:
             privileged: false
           volumeMounts:
             - name: proxy-config
               mountPath: /config
-        - image: quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest
+        - image: $(params.CHROME_DEV_IMAGE)
           name: insights-chrome-dev
           command: ["caddy"]
-          args: ["run", "--config", "/Caddyfile"]
+          args: ["run", "--config", "/etc/caddy/Caddyfile"]
           securityContext:
             privileged: false
           volumeMounts:
             - name: workdir
               mountPath: /var/workdir
             - name: chrome-dev-caddyfile
-              mountPath: /Caddyfile
+              mountPath: /etc/caddy/Caddyfile
               subPath: Caddyfile
         - name: run-application
           image: $(params.APPLICATION_IMAGE)
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              #!/bin/sh
+              set -e
+
+              echo "Patching Caddyfile to add learning-resources routes..."
+
+              # Create a temporary file with the new routes
+              cat > /tmp/learning_resources_routes.txt << 'EOF'
+
+              # Handle all learning-resources routes
+              @learning_resources_match {
+                  path /learning-resources /learning-resources/
+              }
+              handle @learning_resources_match {
+                  uri strip_prefix /learning-resources
+                  rewrite / /index.html
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @learning_resources_subpath {
+                  path /learning-resources/*
+              }
+              handle @learning_resources_subpath {
+                  uri strip_prefix /learning-resources
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @settings_learning_resources_match {
+                  path /settings/learning-resources /settings/learning-resources/
+              }
+              handle @settings_learning_resources_match {
+                  uri strip_prefix /settings/learning-resources
+                  rewrite / /index.html
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @settings_learning_resources_subpath {
+                  path /settings/learning-resources/*
+              }
+              handle @settings_learning_resources_subpath {
+                  uri strip_prefix /settings/learning-resources
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @openshift_learning_resources_match {
+                  path /openshift/learning-resources /openshift/learning-resources/
+              }
+              handle @openshift_learning_resources_match {
+                  uri strip_prefix /openshift/learning-resources
+                  rewrite / /index.html
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @openshift_learning_resources_subpath {
+                  path /openshift/learning-resources/*
+              }
+              handle @openshift_learning_resources_subpath {
+                  uri strip_prefix /openshift/learning-resources
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @ansible_learning_resources_match {
+                  path /ansible/learning-resources /ansible/learning-resources/
+              }
+              handle @ansible_learning_resources_match {
+                  uri strip_prefix /ansible/learning-resources
+                  rewrite / /index.html
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @ansible_learning_resources_subpath {
+                  path /ansible/learning-resources/*
+              }
+              handle @ansible_learning_resources_subpath {
+                  uri strip_prefix /ansible/learning-resources
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @insights_learning_resources_match {
+                  path /insights/learning-resources /insights/learning-resources/
+              }
+              handle @insights_learning_resources_match {
+                  uri strip_prefix /insights/learning-resources
+                  rewrite / /index.html
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @insights_learning_resources_subpath {
+                  path /insights/learning-resources/*
+              }
+              handle @insights_learning_resources_subpath {
+                  uri strip_prefix /insights/learning-resources
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @edge_learning_resources_match {
+                  path /edge/learning-resources /edge/learning-resources/
+              }
+              handle @edge_learning_resources_match {
+                  uri strip_prefix /edge/learning-resources
+                  rewrite / /index.html
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @edge_learning_resources_subpath {
+                  path /edge/learning-resources/*
+              }
+              handle @edge_learning_resources_subpath {
+                  uri strip_prefix /edge/learning-resources
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @iam_learning_resources_match {
+                  path /iam/learning-resources /iam/learning-resources/
+              }
+              handle @iam_learning_resources_match {
+                  uri strip_prefix /iam/learning-resources
+                  rewrite / /index.html
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+
+              @iam_learning_resources_subpath {
+                  path /iam/learning-resources/*
+              }
+              handle @iam_learning_resources_subpath {
+                  uri strip_prefix /iam/learning-resources
+                  file_server * {
+                      root /srv/dist
+                  }
+              }
+              EOF
+
+              # Use awk to insert the new routes before the "handle / {" line
+              awk '
+              /^[[:space:]]*handle \/ \{/ && !done {
+                  while ((getline line < "/tmp/learning_resources_routes.txt") > 0) {
+                      print line
+                  }
+                  close("/tmp/learning_resources_routes.txt")
+                  done = 1
+              }
+              { print }
+              ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
+
+              mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
+
+              echo "Patched Caddyfile:"
+              cat /etc/caddy/Caddyfile
+
+              echo "Starting application with Caddy..."
+              # Start Caddy with the patched configuration
+              exec caddy run --config /etc/caddy/Caddyfile
           securityContext:
             privileged: false
           volumeMounts:
@@ -792,20 +1187,21 @@ spec:
             - use
             - $(params.SOURCE_ARTIFACT)=/var/workdir
         - name: setup-proxy-routes
-          image: busybox:latest
+          image: quay.io/quay/busybox
           script: |
             #!/bin/sh
             set -e
-            echo "Writing proxy routes configuration..."
-            cat > /config/routes.json << 'EOF'
+            echo "Writing proxy routes configuration (Caddy directives)..."
+            cat > /config/routes << 'EOF'
             $(params.PROXY_ROUTES_JSON)
             EOF
-            echo "Proxy routes configured successfully"
+            chmod 644 /config/routes
+            echo "Proxy routes configured successfully:"
+            cat /config/routes
           volumeMounts:
             - name: proxy-config
               mountPath: /config
-        - image: quay.io/btweed/playwright_e2e:latest
-          workingDir: /var/workdir
+        - image: $(params.PLAYWRIGHT_IMAGE)
           env:
             - name: HTTP_PROXY
               value: $(params.HTTP_PROXY)
