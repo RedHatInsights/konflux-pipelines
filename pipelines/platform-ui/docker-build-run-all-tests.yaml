@@ -869,7 +869,9 @@ spec:
                   not path_regexp .*\/(silent-check-sso\.html)$
                 }
 
+		# --- BEGIN CUSTOM APP ROUTES
                 $LOCAL_ROUTES
+                # --- END CUSTOM APP ROUTES
 
                 handle {
                   cache
@@ -880,9 +882,9 @@ spec:
                   }
                 }
                 tls internal {
-                  on_demand
+                	on_demand
                 }
-              }
+              } # End stage.foo.redhat.com
               CADDY_DEF
 
               echo "Formatting Caddyfile"
