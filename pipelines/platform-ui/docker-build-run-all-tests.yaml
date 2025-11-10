@@ -869,7 +869,7 @@ spec:
                   not path_regexp .*\/(silent-check-sso\.html)$
                 }
 
-		# --- BEGIN CUSTOM APP ROUTES
+                # --- BEGIN CUSTOM APP ROUTES
                 $LOCAL_ROUTES
                 # --- END CUSTOM APP ROUTES
 
