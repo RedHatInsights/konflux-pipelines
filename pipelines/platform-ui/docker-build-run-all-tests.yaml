@@ -800,8 +800,7 @@ spec:
         - name: proxy-config
           emptyDir: {}
         - name: chrome-dev-caddyfile
-          configMap:
-            name: chrome-dev-caddyfile
+          emptyDir: {}
       stepTemplate:
         volumeMounts:
           - mountPath: /var/workdir
@@ -983,16 +982,64 @@ spec:
               mountPath: /config
         - image: $(params.CHROME_DEV_IMAGE)
           name: insights-chrome-dev
-          command: ["caddy"]
-          args: ["run", "--config", "/etc/caddy/Caddyfile"]
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              #!/bin/sh
+              set -e
+
+              echo "Creating Caddyfile for insights-chrome-dev..."
+              mkdir -p /etc/caddy
+              cat > /etc/caddy/Caddyfile << 'EOF'
+              {
+                debug
+              }
+
+              :9912 {
+                  root * /opt/app-root/src/build/stable
+
+                  # Handle /apps/chrome* requests - strip prefix and serve
+                  @app_match {
+                      path /apps/chrome*
+                  }
+                  handle @app_match {
+                      uri strip_prefix /apps/chrome
+                      file_server {
+                          browse
+                      }
+                  }
+
+                  # Handle all other requests - try files, fallback to index.html for SPA routing
+                  handle {
+                      try_files {path} /index.html
+                      file_server
+                  }
+
+                  header {
+                      Cache-Control "no-cache, no-store, must-revalidate"
+                      Pragma "no-cache"
+                      Expires "0"
+                  }
+                  header {
+                      Access-Control-Allow-Origin "*"
+                      Access-Control-Allow-Methods "GET, POST, OPTIONS"
+                      Access-Control-Allow-Headers "Content-Type"
+                  }
+              }
+              EOF
+
+              echo "Caddyfile created successfully:"
+              cat /etc/caddy/Caddyfile
+
+              echo "Starting caddy..."
+              exec caddy run --config /etc/caddy/Caddyfile
           securityContext:
             privileged: false
           volumeMounts:
             - name: workdir
               mountPath: /var/workdir
             - name: chrome-dev-caddyfile
-              mountPath: /etc/caddy/Caddyfile
-              subPath: Caddyfile
+              mountPath: /etc/caddy
         - name: run-application
           image: $(params.APPLICATION_IMAGE)
           command: ["/bin/sh", "-c"]
@@ -1231,46 +1278,3 @@ spec:
     optional: true
   - name: netrc
     optional: true
----
-# ConfigMap for Caddy configuration - serves chrome UI static assets
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: chrome-dev-caddyfile
-data:
-  Caddyfile: |
-    {
-      debug
-    }
-
-    :9912 {
-        root * /opt/app-root/src/build/stable
-
-        # Handle /apps/chrome* requests - strip prefix and serve
-        @app_match {
-            path /apps/chrome*
-        }
-        handle @app_match {
-            uri strip_prefix /apps/chrome
-            file_server {
-                browse
-            }
-        }
-
-        # Handle all other requests - try files, fallback to index.html for SPA routing
-        handle {
-            try_files {path} /index.html
-            file_server
-        }
-
-        header {
-            Cache-Control "no-cache, no-store, must-revalidate"
-            Pragma "no-cache"
-            Expires "0"
-        }
-        header {
-            Access-Control-Allow-Origin "*"
-            Access-Control-Allow-Methods "GET, POST, OPTIONS"
-            Access-Control-Allow-Headers "Content-Type"
-        }
-    }
