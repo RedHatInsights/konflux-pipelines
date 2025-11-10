@@ -842,82 +842,54 @@ spec:
                 exit 1
               fi
 
-              echo "Original Caddyfile:"
-              cat /etc/caddy/Caddyfile
-
               if ! grep -q '{$LOCAL_ROUTES}' /etc/caddy/Caddyfile; then
                 echo "ERROR: {$LOCAL_ROUTES} placeholder not found in Caddyfile!"
                 echo "The Caddyfile must contain {$LOCAL_ROUTES} where routes should be injected."
                 exit 1
               fi
-
-              echo "Found {$LOCAL_ROUTES} placeholder, performing manual substitution..."
-
-              # Check for required tools
-              echo "Checking for required tools..."
-              for tool in awk sed grep cat; do
-                if ! command -v $tool >/dev/null 2>&1; then
-                  echo "ERROR: Required tool '$tool' not found in container!"
-                  exit 1
-                fi
-              done
-              echo "All required tools available"
-
-              # Manually substitute all environment variables in the Caddyfile
-              # This gives us full visibility of the final config before Caddy starts
-
-              # Read the routes and properly indent them (4 spaces to match Caddyfile indentation)
-              sed 's/^/    /' /config/routes > /tmp/routes_indented.txt
-
-              # Substitute {$LOCAL_ROUTES} with actual routes, and other env vars
-              awk -v hcc_env="$HCC_ENV" -v proxy_port="$PROXY_PORT" -v hcc_env_url="$HCC_ENV_URL" '
-              BEGIN {
-                while ((getline line < "/tmp/routes_indented.txt") > 0) {
-                  routes = routes line "\n"
-                }
-                close("/tmp/routes_indented.txt")
-                # Remove trailing newline
-                sub(/\n$/, "", routes)
-              }
+              
+              # Same as the default one in the fe-dev-proxy container but debug and admin are turned on
+              cat << CADDY_DEF > /etc/caddy/Caddyfile
               {
-                line = $0
-                # Replace all environment variables including {$LOCAL_ROUTES}
-                gsub(/\{\$LOCAL_ROUTES\}/, routes, line)
-                gsub(/\{\$HCC_ENV\}/, hcc_env, line)
-                gsub(/\{\$PROXY_PORT\}/, proxy_port, line)
-                gsub(/\{\$HCC_ENV_URL\}/, hcc_env_url, line)
-                print line
+                order rewrite before reverse_proxy
+                order rh_identity_transform before respond
+                cache
+                admin :2019
+                debug
               }
-              ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
-
-              mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
+  
+              {$HCC_ENV}.foo.redhat.com:{$PROXY_PORT} {
+                log default {
+                  output stdout
+                  format transform "{common_log}"
+                }
+  
+                @html_fallback {
+                  header Accept *text/html*
+                  not path_regexp .*\/(silent-check-sso\.html)$
+                }
+  
+                {$LOCAL_ROUTES}
+  
+                handle {
+                  cache
+                  reverse_proxy {$HCC_ENV_URL} {
+                  header_up Host {http.reverse_proxy.upstream.hostport}
+                  header_up Accept-Encoding "gzip;q=0,deflate,sdch"
+                  header_up -Origin
+                }
+                tls internal {
+                  on_demand
+                }
+              }
+              CADDY_DEF
 
               # Enable debug logging and admin API
               echo "Enabling debug mode and admin API..."
 
-              # Change 'admin off' to 'admin :2019' to enable admin API
-              sed -i 's/admin off/admin :2019/g' /etc/caddy/Caddyfile
-
-              # Add debug to global options block if not already present
-              if ! grep -q "debug" /etc/caddy/Caddyfile; then
-                # Insert 'debug' after the first opening brace
-                sed -i '1,/^{/s/^{/{\n debug/' /etc/caddy/Caddyfile
-              fi
-
-              # Replace stage.foo.redhat.com in catch-all handler with actual stage hostname
-              echo "Configuring catch-all handler to use actual stage environment..."
-              if [ -n "$STAGE_ACTUAL_HOSTNAME" ]; then
-                echo "Replacing stage.foo.redhat.com with ${STAGE_ACTUAL_HOSTNAME} in catch-all handler"
-                sed -i "s|https://stage\.foo\.redhat\.com|https://${STAGE_ACTUAL_HOSTNAME}|g" /etc/caddy/Caddyfile
-              else
-                echo "WARNING: STAGE_ACTUAL_HOSTNAME not set, catch-all will use stage.foo.redhat.com (may fail due to hostAliases)"
-              fi
-
               # fix formatting of Caddyfile
               caddy fmt --overwrite /etc/caddy/Caddyfile
 
-              echo "Final Caddyfile (after LOCAL_ROUTES substitution):"
-              cat /etc/caddy/Caddyfile
 
               # Wait for insights-chrome-dev to be ready on port 9912
               echo "Waiting for insights-chrome-dev to be ready on port 9912..."
