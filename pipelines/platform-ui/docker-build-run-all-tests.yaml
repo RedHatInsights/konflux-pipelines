@@ -881,16 +881,12 @@ spec:
               }
               {
                 line = $0
-                # Replace {$LOCAL_ROUTES}
-                if (line ~ /\{\$LOCAL_ROUTES\}/) {
-                  print routes
-                } else {
-                  # Replace other environment variables
-                  gsub(/\{\$HCC_ENV\}/, hcc_env, line)
-                  gsub(/\{\$PROXY_PORT\}/, proxy_port, line)
-                  gsub(/\{\$HCC_ENV_URL\}/, hcc_env_url, line)
-                  print line
-                }
+                # Replace all environment variables including {$LOCAL_ROUTES}
+                gsub(/\{\$LOCAL_ROUTES\}/, routes, line)
+                gsub(/\{\$HCC_ENV\}/, hcc_env, line)
+                gsub(/\{\$PROXY_PORT\}/, proxy_port, line)
+                gsub(/\{\$HCC_ENV_URL\}/, hcc_env_url, line)
+                print line
               }
               ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
 
