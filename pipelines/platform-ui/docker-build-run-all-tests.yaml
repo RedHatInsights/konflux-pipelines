@@ -1231,3 +1231,46 @@ spec:
     optional: true
   - name: netrc
     optional: true
+---
+# ConfigMap for Caddy configuration - serves chrome UI static assets
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chrome-dev-caddyfile
+data:
+  Caddyfile: |
+    {
+      debug
+    }
+
+    :9912 {
+        root * /opt/app-root/src/build/stable
+
+        # Handle /apps/chrome* requests - strip prefix and serve
+        @app_match {
+            path /apps/chrome*
+        }
+        handle @app_match {
+            uri strip_prefix /apps/chrome
+            file_server {
+                browse
+            }
+        }
+
+        # Handle all other requests - try files, fallback to index.html for SPA routing
+        handle {
+            try_files {path} /index.html
+            file_server
+        }
+
+        header {
+            Cache-Control "no-cache, no-store, must-revalidate"
+            Pragma "no-cache"
+            Expires "0"
+        }
+        header {
+            Access-Control-Allow-Origin "*"
+            Access-Control-Allow-Methods "GET, POST, OPTIONS"
+            Access-Control-Allow-Headers "Content-Type"
+        }
+    }
