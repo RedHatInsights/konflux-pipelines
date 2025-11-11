@@ -120,14 +120,6 @@ spec:
   - description: Script run while executing the run-e2e-tests custom task
     name: e2e-tests-script
     type: string
-  - description: Test user credentials for e2e tests
-    name: e2e-user
-    type: string
-    default: ""
-  - description: Test user password for e2e tests
-    name: e2e-password
-    type: string
-    default: ""
   - description: Proxy routes JSON configuration for e2e tests
     name: proxy-routes-json
     type: string
@@ -723,10 +715,6 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: e2e-tests-script
         value: $(params.e2e-tests-script)
-      - name: E2E_USER
-        value: $(params.e2e-user)
-      - name: E2E_PASSWORD
-        value: $(params.e2e-password)
       - name: PROXY_ROUTES_JSON
         value: $(params.proxy-routes-json)
       - name: APP_PORT
@@ -757,12 +745,6 @@ spec:
           type: string
         - description: The script to execute the e2e tests
           name: e2e-tests-script
-          type: string
-        - description: Test user credentials
-          name: E2E_USER
-          type: string
-        - description: Test user password
-          name: E2E_PASSWORD
           type: string
         - description: Proxy routes JSON configuration
           name: PROXY_ROUTES_JSON
@@ -1231,9 +1213,15 @@ spec:
                   name: e2e-proxy
                   key: url
             - name: E2E_USER
-              value: $(params.E2E_USER)
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-user
+                  key: username
             - name: E2E_PASSWORD
-              value: $(params.E2E_PASSWORD)
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-user
+                  key: password
             - name: NO_PROXY
               value: "stage.foo.redhat.com"
           name: e2e-tests
