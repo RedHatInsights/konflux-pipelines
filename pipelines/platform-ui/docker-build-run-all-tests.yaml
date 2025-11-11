@@ -120,10 +120,6 @@ spec:
   - description: Script run while executing the run-e2e-tests custom task
     name: e2e-tests-script
     type: string
-  - description: HTTP proxy for e2e tests
-    name: e2e-proxy
-    type: string
-    default: ""
   - description: Test user credentials for e2e tests
     name: e2e-user
     type: string
@@ -727,8 +723,6 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: e2e-tests-script
         value: $(params.e2e-tests-script)
-      - name: HTTP_PROXY
-        value: $(params.e2e-proxy)
       - name: E2E_USER
         value: $(params.e2e-user)
       - name: E2E_PASSWORD
@@ -763,9 +757,6 @@ spec:
           type: string
         - description: The script to execute the e2e tests
           name: e2e-tests-script
-          type: string
-        - description: HTTP proxy configuration
-          name: HTTP_PROXY
           type: string
         - description: Test user credentials
           name: E2E_USER
@@ -934,9 +925,15 @@ spec:
               caddy run --config /etc/caddy/Caddyfile
           env:
             - name: HTTP_PROXY
-              value: $(params.HTTP_PROXY)
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-proxy
+                  key: url
             - name: HTTPS_PROXY
-              value: $(params.HTTP_PROXY)
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-proxy
+                  key: url
             - name: HCC_ENV
               value: "stage"
             - name: PROXY_PORT
@@ -1224,9 +1221,15 @@ spec:
         - image: $(params.PLAYWRIGHT_IMAGE)
           env:
             - name: HTTP_PROXY
-              value: $(params.HTTP_PROXY)
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-proxy
+                  key: url
             - name: HTTPS_PROXY
-              value: $(params.HTTP_PROXY)
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-proxy
+                  key: url
             - name: E2E_USER
               value: $(params.E2E_USER)
             - name: E2E_PASSWORD
