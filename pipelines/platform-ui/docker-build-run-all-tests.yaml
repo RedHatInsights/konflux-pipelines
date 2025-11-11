@@ -881,8 +881,9 @@ spec:
                     header_up -Origin
                   }
                 }
+                
                 tls internal {
-                	on_demand
+                    on_demand
                 }
               } # End stage.foo.redhat.com
               CADDY_DEF
