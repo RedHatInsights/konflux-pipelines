@@ -150,14 +150,6 @@ spec:
     name: e2e-proxy-image
     type: string
     default: "quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest"
-  - description: Actual stage environment hostname (for catch-all proxy)
-    name: e2e-stage-actual-hostname
-    type: string
-    default: ""
-  - description: HCC environment URL
-    name: e2e-hcc-env-url
-    type: string
-    default: ""
   results:
   - description: ""
     name: IMAGE_URL
@@ -725,10 +717,6 @@ spec:
         value: $(params.e2e-chrome-dev-image)
       - name: PROXY_IMAGE
         value: $(params.e2e-proxy-image)
-      - name: STAGE_ACTUAL_HOSTNAME
-        value: $(params.e2e-stage-actual-hostname)
-      - name: HCC_ENV_URL
-        value: $(params.e2e-hcc-env-url)
     runAfter:
       - clone-repository-oci-ta
       - build-image-index
@@ -760,12 +748,6 @@ spec:
           type: string
         - description: Frontend proxy image
           name: PROXY_IMAGE
-          type: string
-        - description: Actual stage environment hostname (for catch-all proxy)
-          name: STAGE_ACTUAL_HOSTNAME
-          type: string
-        - description: HCC environment URL
-          name: HCC_ENV_URL
           type: string
       volumes:
         - name: workdir
@@ -923,10 +905,13 @@ spec:
             - name: HCC_ENV_URL
               valueFrom:
                 secretKeyRef:
-                  name: hcc-env-url
+                  name: e2e-hcc-env-url
                   key: url
             - name: STAGE_ACTUAL_HOSTNAME
-              value: $(params.STAGE_ACTUAL_HOSTNAME)
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-stage-actual-hostname
+                  key: hostname
           securityContext:
             privileged: false
           volumeMounts:
