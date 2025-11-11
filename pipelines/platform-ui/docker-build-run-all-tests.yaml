@@ -859,6 +859,8 @@ spec:
               }
 
               stage.foo.redhat.com:$PROXY_PORT {
+                tls internal
+
                 log default {
                   output stdout
                   format transform "{common_log}"
@@ -880,10 +882,6 @@ spec:
                     header_up Accept-Encoding "gzip;q=0,deflate,sdch"
                     header_up -Origin
                   }
-                }
-                
-                tls internal {
-                    on_demand
                 }
               } # End stage.foo.redhat.com
               CADDY_DEF
