@@ -4,14 +4,9 @@
   "packageRules": [
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
-      "description": "Disable all updates on foreman/satellite branches",
+      "description": "Disale all managers except specific managers on foreman/satellite branches",
+      "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
       "enabled": false
-    },
-    {
-      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
-      "description": "Enable only specific managers on foreman/satellite branches",
-      "enabledManagers": ["tekton", "dockerfile", "rpm-lockfile"],
-      "enabled": true
     }
   ]
 }
