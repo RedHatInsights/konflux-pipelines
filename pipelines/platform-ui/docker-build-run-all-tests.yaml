@@ -1209,6 +1209,11 @@ spec:
                 secretKeyRef:
                   name: e2e-user
                   key: password
+            - name: HCC_ENV_URL
+              valueFrom:
+                secretKeyRef:
+                  name: e2e-hcc-env-url
+                   key: url
             - name: NO_PROXY
               value: "stage.foo.redhat.com"
           name: e2e-tests
