@@ -837,7 +837,7 @@ spec:
                     header_up Accept-Encoding "gzip;q=0,deflate,sdch"
                     header_up -Origin
                     transport http {
-                      proxy_url $HTTP_PROXY
+                      proxy $HTTP_PROXY
                     }
                   }
                 }
