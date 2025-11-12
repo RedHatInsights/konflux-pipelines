@@ -836,9 +836,6 @@ spec:
                     header_up Host {http.reverse_proxy.upstream.hostport}
                     header_up Accept-Encoding "gzip;q=0,deflate,sdch"
                     header_up -Origin
-                    transport http {
-                      proxy $HTTP_PROXY
-                    }
                   }
                 }
               } # End stage.foo.redhat.com
