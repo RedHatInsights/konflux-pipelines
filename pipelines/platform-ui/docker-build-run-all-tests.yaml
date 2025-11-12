@@ -1213,7 +1213,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: e2e-hcc-env-url
-                   key: url
+                  key: url
             - name: NO_PROXY
               value: "stage.foo.redhat.com"
           name: e2e-tests
