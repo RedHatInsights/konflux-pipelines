@@ -898,6 +898,8 @@ spec:
                 secretKeyRef:
                   name: e2e-proxy
                   key: url
+            - name: NO_PROXY
+              value: "127.0.0.1,localhost"
             - name: HCC_ENV
               value: "stage"
             - name: PROXY_PORT
