@@ -888,16 +888,6 @@ spec:
               echo "Starting frontend-development-proxy..."
               caddy run --config /etc/caddy/Caddyfile
           env:
-            - name: HTTP_PROXY
-              valueFrom:
-                secretKeyRef:
-                  name: e2e-proxy
-                  key: url
-            - name: HTTPS_PROXY
-              valueFrom:
-                secretKeyRef:
-                  name: e2e-proxy
-                  key: url
             - name: NO_PROXY
               value: "127.0.0.1,localhost"
             - name: HCC_ENV
@@ -1189,16 +1179,6 @@ spec:
               mountPath: /config
         - image: $(params.PLAYWRIGHT_IMAGE)
           env:
-            - name: HTTP_PROXY
-              valueFrom:
-                secretKeyRef:
-                  name: e2e-proxy
-                  key: url
-            - name: HTTPS_PROXY
-              valueFrom:
-                secretKeyRef:
-                  name: e2e-proxy
-                  key: url
             - name: E2E_USER
               valueFrom:
                 secretKeyRef:
