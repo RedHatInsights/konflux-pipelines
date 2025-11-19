@@ -120,6 +120,9 @@ spec:
   - description: Script run while executing the run-e2e-tests custom task
     name: e2e-tests-script
     type: string
+  - description: Script run by the run-application sidecar
+    name: run-app-script
+    type: string
   - description: Proxy routes JSON configuration for e2e tests
     name: proxy-routes-json
     type: string
@@ -707,6 +710,8 @@ spec:
         value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: e2e-tests-script
         value: $(params.e2e-tests-script)
+      - name: run-app-script
+        value: $(params.run-app-script)
       - name: PROXY_ROUTES_JSON
         value: $(params.proxy-routes-json)
       - name: APP_PORT
@@ -733,6 +738,9 @@ spec:
           type: string
         - description: The script to execute the e2e tests
           name: e2e-tests-script
+          type: string
+        - description: The script to run the application
+          name: run-app-script
           type: string
         - description: Proxy routes JSON configuration
           name: PROXY_ROUTES_JSON
@@ -973,184 +981,7 @@ spec:
           image: $(params.APPLICATION_IMAGE)
           command: ["/bin/sh", "-c"]
           args:
-            - |
-              #!/bin/sh
-              set -e
-
-              echo "Patching Caddyfile to add learning-resources routes..."
-
-              # Create a temporary file with the new routes
-              cat > /tmp/learning_resources_routes.txt << 'EOF'
-
-              # Handle all learning-resources routes
-              @learning_resources_match {
-                  path /learning-resources /learning-resources/
-              }
-              handle @learning_resources_match {
-                  uri strip_prefix /learning-resources
-                  rewrite / /index.html
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @learning_resources_subpath {
-                  path /learning-resources/*
-              }
-              handle @learning_resources_subpath {
-                  uri strip_prefix /learning-resources
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @settings_learning_resources_match {
-                  path /settings/learning-resources /settings/learning-resources/
-              }
-              handle @settings_learning_resources_match {
-                  uri strip_prefix /settings/learning-resources
-                  rewrite / /index.html
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @settings_learning_resources_subpath {
-                  path /settings/learning-resources/*
-              }
-              handle @settings_learning_resources_subpath {
-                  uri strip_prefix /settings/learning-resources
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @openshift_learning_resources_match {
-                  path /openshift/learning-resources /openshift/learning-resources/
-              }
-              handle @openshift_learning_resources_match {
-                  uri strip_prefix /openshift/learning-resources
-                  rewrite / /index.html
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @openshift_learning_resources_subpath {
-                  path /openshift/learning-resources/*
-              }
-              handle @openshift_learning_resources_subpath {
-                  uri strip_prefix /openshift/learning-resources
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @ansible_learning_resources_match {
-                  path /ansible/learning-resources /ansible/learning-resources/
-              }
-              handle @ansible_learning_resources_match {
-                  uri strip_prefix /ansible/learning-resources
-                  rewrite / /index.html
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @ansible_learning_resources_subpath {
-                  path /ansible/learning-resources/*
-              }
-              handle @ansible_learning_resources_subpath {
-                  uri strip_prefix /ansible/learning-resources
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @insights_learning_resources_match {
-                  path /insights/learning-resources /insights/learning-resources/
-              }
-              handle @insights_learning_resources_match {
-                  uri strip_prefix /insights/learning-resources
-                  rewrite / /index.html
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @insights_learning_resources_subpath {
-                  path /insights/learning-resources/*
-              }
-              handle @insights_learning_resources_subpath {
-                  uri strip_prefix /insights/learning-resources
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @edge_learning_resources_match {
-                  path /edge/learning-resources /edge/learning-resources/
-              }
-              handle @edge_learning_resources_match {
-                  uri strip_prefix /edge/learning-resources
-                  rewrite / /index.html
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @edge_learning_resources_subpath {
-                  path /edge/learning-resources/*
-              }
-              handle @edge_learning_resources_subpath {
-                  uri strip_prefix /edge/learning-resources
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @iam_learning_resources_match {
-                  path /iam/learning-resources /iam/learning-resources/
-              }
-              handle @iam_learning_resources_match {
-                  uri strip_prefix /iam/learning-resources
-                  rewrite / /index.html
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-
-              @iam_learning_resources_subpath {
-                  path /iam/learning-resources/*
-              }
-              handle @iam_learning_resources_subpath {
-                  uri strip_prefix /iam/learning-resources
-                  file_server * {
-                      root /srv/dist
-                  }
-              }
-              EOF
-
-              # Use awk to insert the new routes before the "handle / {" line
-              awk '
-              /^[[:space:]]*handle \/ \{/ && !done {
-                  while ((getline line < "/tmp/learning_resources_routes.txt") > 0) {
-                      print line
-                  }
-                  close("/tmp/learning_resources_routes.txt")
-                  done = 1
-              }
-              { print }
-              ' /etc/caddy/Caddyfile > /tmp/Caddyfile.new
-
-              mv /tmp/Caddyfile.new /etc/caddy/Caddyfile
-
-              echo "Patched Caddyfile:"
-              cat /etc/caddy/Caddyfile
-
-              echo "Starting application with Caddy..."
-              # Start Caddy with the patched configuration
-              exec caddy run --config /etc/caddy/Caddyfile
+            - $(params.run-app-script)
           securityContext:
             privileged: false
           volumeMounts:
