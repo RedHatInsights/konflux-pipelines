@@ -144,7 +144,7 @@ spec:
   - description: Playwright image to use for testing
     name: e2e-playwright-image
     type: string
-    default: "registry.redhat.io/rhel9/nodejs-24:latest"
+    default: "quay.io/btweed/playwright_e2e:latest"
   - description: Chrome dev image
     name: e2e-chrome-dev-image
     type: string
