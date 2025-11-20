@@ -998,10 +998,17 @@ spec:
           script: |
             #!/bin/sh
             set -e
-            echo "Writing proxy routes configuration (Caddy directives)..."
-            cat > /config/routes << 'EOF'
+            echo "Generating proxy routes configuration..."
+
+            # Write the proxy routes script to a temporary file
+            cat > /tmp/generate_proxy_routes.sh << 'SCRIPT_EOF'
             $(params.PROXY_ROUTES_JSON)
-            EOF
+            SCRIPT_EOF
+
+            # Execute the script to generate routes
+            chmod +x /tmp/generate_proxy_routes.sh
+            /tmp/generate_proxy_routes.sh > /config/routes
+
             chmod 644 /config/routes
             echo "Proxy routes configured successfully:"
             cat /config/routes
