@@ -742,8 +742,8 @@ spec:
         - description: The script to run the application
           name: run-app-script
           type: string
-        - description: Proxy routes JSON configuration
-          name: PROXY_ROUTES_JSON
+        - description: Proxy routes script
+          name: PROXY_ROUTES_SCRIPT
           type: string
         - description: Application port (default 8000)
           name: APP_PORT
