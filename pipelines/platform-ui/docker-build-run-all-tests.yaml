@@ -123,8 +123,8 @@ spec:
   - description: Script run by the run-application sidecar
     name: run-app-script
     type: string
-  - description: Proxy routes JSON configuration for e2e tests
-    name: proxy-routes-json
+  - description: Script to generate proxy routes configuration for e2e tests
+    name: proxy-routes-script
     type: string
     default: |
       {
@@ -712,8 +712,8 @@ spec:
         value: $(params.e2e-tests-script)
       - name: run-app-script
         value: $(params.run-app-script)
-      - name: PROXY_ROUTES_JSON
-        value: $(params.proxy-routes-json)
+      - name: PROXY_ROUTES_SCRIPT
+        value: $(params.proxy-routes-script)
       - name: APP_PORT
         value: $(params.e2e-app-port)
       - name: PLAYWRIGHT_IMAGE
@@ -1002,7 +1002,7 @@ spec:
 
             # Write the proxy routes script to a temporary file
             cat > /tmp/generate_proxy_routes.sh << 'SCRIPT_EOF'
-            $(params.PROXY_ROUTES_JSON)
+            $(params.PROXY_ROUTES_SCRIPT)
             SCRIPT_EOF
 
             # Execute the script to generate routes
