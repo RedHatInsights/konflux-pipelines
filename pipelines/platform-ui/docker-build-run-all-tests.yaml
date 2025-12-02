@@ -994,24 +994,16 @@ spec:
             - use
             - $(params.SOURCE_ARTIFACT)=/var/workdir
         - name: setup-proxy-routes
-          image: quay.io/quay/busybox
+          image: registry.redhat.io/ubi9/ubi-minimal:latest
           script: |
-            #!/bin/sh
+            #!/bin/bash
             set -e
             echo "Generating proxy routes configuration..."
 
-            # Write the proxy routes script to a temporary file
-            cat > /tmp/generate_proxy_routes.sh << 'SCRIPT_EOF'
-            $(params.PROXY_ROUTES_SCRIPT)
-            SCRIPT_EOF
-
-            # Execute the script to generate routes
-            chmod +x /tmp/generate_proxy_routes.sh
-            /tmp/generate_proxy_routes.sh > /config/routes
-
-            chmod 644 /config/routes
-            echo "Proxy routes configured successfully:"
-            cat /config/routes
+            set -e
+            echo "Generating Caddyfile from proxy-routes-script..."
+            eval "$(params.proxy-routes-script)" > /config/Caddyfile
+            echo "Caddyfile generated successfully"
           volumeMounts:
             - name: proxy-config
               mountPath: /config
