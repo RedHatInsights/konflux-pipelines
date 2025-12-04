@@ -57,7 +57,7 @@ spec:
     type: string
   - default: "true"
     description: Skip SAST coverity check
-    name: skip-sast-coverity-checks
+    name: skip-sast-coverity-check
     type: string
   - default: "false"
     description: Execute the build with network isolation
@@ -461,7 +461,7 @@ spec:
         value: task
       resolver: bundles
     when:
-    - input: $(params.skip-sast-coverity-checks)
+    - input: $(params.skip-checks)
       operator: in
       values:
       - "false"
@@ -469,6 +469,10 @@ spec:
       operator: in
       values:
       - success
+    - input: $(params.skip-sast-coverity-check)
+      operator: in
+      values:
+      - "false"
   - name: coverity-availability-check
     runAfter:
     - build-image-index
