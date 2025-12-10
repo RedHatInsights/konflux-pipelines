@@ -1003,7 +1003,6 @@ spec:
             #!/bin/sh
             set -e
             echo "Generating proxy routes configuration..."
-            
             # The frontend proxy image expects the data to be in /config/routes
             # Write the proxy routes script to the expected place
             cat > /config/routes << 'SCRIPT_EOF'
@@ -1046,43 +1045,6 @@ spec:
           securityContext:
             runAsUser: 0
           script: $(params.e2e-tests-script)
-
-          chmod 644 /config/routes
-          echo "Proxy routes configured successfully:"
-          cat /config/routes
-        volumeMounts:
-        - name: proxy-config
-          mountPath: /config
-      - image: $(params.PLAYWRIGHT_IMAGE)
-        env:
-        - name: E2E_USER
-          valueFrom:
-            secretKeyRef:
-              name: e2e-user
-              key: username
-        - name: E2E_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: e2e-user
-              key: password
-        - name: HCC_ENV_URL
-          valueFrom:
-            secretKeyRef:
-              name: e2e-hcc-env-url
-              key: url
-        - name: NO_PROXY
-          value: "stage.foo.redhat.com"
-        name: e2e-tests
-        computeResources:
-          requests:
-            cpu: "2000m"
-            memory: "4Gi"
-          limits:
-            cpu: "4000m"
-            memory: "8Gi"
-        securityContext:
-          runAsUser: 0
-        script: $(params.e2e-tests-script)
   workspaces:
   - name: workspace
   - name: git-auth
