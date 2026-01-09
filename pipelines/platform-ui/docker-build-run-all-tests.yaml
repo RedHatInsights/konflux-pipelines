@@ -123,9 +123,10 @@ spec:
   - description: Script run by the run-application sidecar
     name: run-app-script
     type: string
-  - description: Proxy route data to be incorportated in frontend-development-proxy Caddyfile
+  - description: Proxy route data to be incorportated in frontend-development-proxy Caddyfile (optional if using ConfigMap)
     name: frontend-proxy-routes
     type: string
+    default: ""
   - description: Application port (default 8000)
     name: e2e-app-port
     type: string
@@ -1011,16 +1012,24 @@ spec:
           script: |
             #!/bin/sh
             set -e
-            echo "Generating proxy routes configuration..."
-            # The frontend proxy image expects the data to be in /config/routes
-            # Write the proxy routes script to the expected place
-            cat > /config/routes << 'SCRIPT_EOF'
+
+            # Check if routes file already exists (from ConfigMap mount)
+            if [ -f /config/routes ] && [ -s /config/routes ]; then
+              echo "Routes file already exists (from ConfigMap), skipping parameter-based setup"
+              echo "Existing routes content:"
+              cat /config/routes
+            else
+              echo "Generating proxy routes configuration from parameter..."
+              # The frontend proxy image expects the data to be in /config/routes
+              # Write the proxy routes script to the expected place
+              cat > /config/routes << 'SCRIPT_EOF'
             $(params.PROXY_ROUTES)
             SCRIPT_EOF
 
-            chmod 644 /config/routes
-            echo "Proxy routes configured successfully:"
-            cat /config/routes
+              chmod 644 /config/routes
+              echo "Proxy routes configured successfully:"
+              cat /config/routes
+            fi
           volumeMounts:
             - name: proxy-config
               mountPath: /config
