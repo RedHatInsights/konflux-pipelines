@@ -123,8 +123,8 @@ spec:
   - description: Script run by the run-application sidecar
     name: run-app-script
     type: string
-  - description: Proxy route data to be incorportated in frontend-development-proxy Caddyfile (optional if using ConfigMap)
-    name: frontend-proxy-routes
+  - description: Name of ConfigMap containing proxy routes data
+    name: frontend-proxy-routes-configmap
     type: string
     default: ""
   - description: Application port (default 8000)
@@ -721,8 +721,8 @@ spec:
         value: $(params.e2e-tests-script)
       - name: run-app-script
         value: $(params.run-app-script)
-      - name: PROXY_ROUTES
-        value: $(params.frontend-proxy-routes)
+      - name: PROXY_ROUTES_CONFIGMAP
+        value: $(params.frontend-proxy-routes-configmap)
       - name: APP_PORT
         value: $(params.e2e-app-port)
       - name: PLAYWRIGHT_IMAGE
@@ -753,8 +753,8 @@ spec:
         - description: The script to run the application
           name: run-app-script
           type: string
-        - description: Proxy routes
-          name: PROXY_ROUTES
+        - description: Name of ConfigMap containing proxy routes data
+          name: PROXY_ROUTES_CONFIGMAP
           type: string
         - description: Application port (default 8000)
           name: APP_PORT
@@ -776,6 +776,13 @@ spec:
         emptyDir: {}
       - name: proxy-config
         emptyDir: {}
+      - name: proxy-routes-configmap
+        configMap:
+          name: $(params.PROXY_ROUTES_CONFIGMAP)
+          optional: true
+          items:
+          - key: routes
+            path: routes
       - name: chrome-dev-caddyfile
         emptyDir: {}
       stepTemplate:
@@ -1013,26 +1020,28 @@ spec:
             #!/bin/sh
             set -e
 
-            # Check if routes file already exists (from ConfigMap mount)
-            if [ -f /config/routes ] && [ -s /config/routes ]; then
-              echo "Routes file already exists (from ConfigMap), skipping parameter-based setup"
-              echo "Existing routes content:"
-              cat /config/routes
-            else
-              echo "Generating proxy routes configuration from parameter..."
-              # The frontend proxy image expects the data to be in /config/routes
-              # Write the proxy routes script to the expected place
-              cat > /config/routes << 'SCRIPT_EOF'
-            $(params.PROXY_ROUTES)
-            SCRIPT_EOF
-
-              chmod 644 /config/routes
-              echo "Proxy routes configured successfully:"
-              cat /config/routes
+            # Check if ConfigMap data is available
+            if [ ! -f /configmap-data/routes ]; then
+              echo "ERROR: ConfigMap routes file not found at /configmap-data/routes"
+              echo "Please ensure the ConfigMap is properly configured with a 'routes' key"
+              exit 1
             fi
+
+            if [ ! -s /configmap-data/routes ]; then
+              echo "ERROR: ConfigMap routes file is empty"
+              exit 1
+            fi
+
+            echo "Using routes from ConfigMap..."
+            cp /configmap-data/routes /config/routes
+            chmod 644 /config/routes
+            echo "Routes content:"
+            cat /config/routes
           volumeMounts:
             - name: proxy-config
               mountPath: /config
+            - name: proxy-routes-configmap
+              mountPath: /configmap-data
         - image: $(params.PLAYWRIGHT_IMAGE)
           env:
             - name: NO_PROXY
