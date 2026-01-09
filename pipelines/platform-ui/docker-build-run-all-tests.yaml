@@ -954,7 +954,7 @@ spec:
           }
 
           :9912 {
-              root * /opt/app-root/src/build/stable
+              root * /srv/dist
 
               # Handle /apps/chrome* requests - strip prefix and serve
               @app_match {
