@@ -682,19 +682,19 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
+    - name: shared-workspace
+      workspace: workspace
     taskSpec:
       params:
       - description: The Trusted Artifact URI pointing to the artifact with the application source code.
         name: SOURCE_ARTIFACT
         type: string
-      volumes:
-          # New volume to store a copy of the source code accessible only to this Task.
-      - name: workdir
-        emptyDir: {}
+      workspaces:
+      - name: shared-workspace
       stepTemplate:
         volumeMounts:
         - mountPath: /var/workdir
-          name: workdir
+          name: shared-workspace
           readOnly: false
       sidecars:
       steps:
@@ -739,6 +739,8 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
+    - name: shared-workspace
+      workspace: workspace
     taskSpec:
       params:
         - description: The Trusted Artifact URI pointing to the test source code
@@ -771,9 +773,9 @@ spec:
         - description: Name of the secret containing e2e credentials
           name: CREDENTIALS_SECRET
           type: string
+      workspaces:
+      - name: shared-workspace
       volumes:
-      - name: workdir
-        emptyDir: {}
       - name: proxy-config
         emptyDir: {}
       - name: proxy-routes-configmap
@@ -788,7 +790,7 @@ spec:
       stepTemplate:
         volumeMounts:
         - mountPath: /var/workdir
-          name: workdir
+          name: shared-workspace
           readOnly: false
       sidecars:
       - image: $(params.PROXY_IMAGE)
@@ -994,7 +996,7 @@ spec:
         securityContext:
           privileged: false
         volumeMounts:
-        - name: workdir
+        - name: shared-workspace
           mountPath: /var/workdir
         - name: chrome-dev-caddyfile
           mountPath: /etc/caddy
@@ -1006,7 +1008,7 @@ spec:
         securityContext:
           privileged: false
         volumeMounts:
-        - name: workdir
+        - name: shared-workspace
           mountPath: /var/workdir
       steps:
         - name: use-trusted-artifact
