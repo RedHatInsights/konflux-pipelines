@@ -731,6 +731,7 @@ spec:
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
+    - run-unit-tests
     workspaces:
     - name: basic-auth
       workspace: git-auth
