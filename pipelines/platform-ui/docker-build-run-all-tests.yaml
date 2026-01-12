@@ -691,12 +691,7 @@ spec:
         type: string
       workspaces:
       - name: shared-workspace
-      stepTemplate:
-        volumeMounts:
-        - mountPath: /var/workdir
-          name: shared-workspace
-          readOnly: false
-      sidecars:
+        mountPath: /var/workdir
       steps:
       - name: use-trusted-artifact
         image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
@@ -775,6 +770,7 @@ spec:
           type: string
       workspaces:
       - name: shared-workspace
+        mountPath: /var/workdir
       volumes:
       - name: proxy-config
         emptyDir: {}
@@ -787,11 +783,6 @@ spec:
             path: routes
       - name: chrome-dev-caddyfile
         emptyDir: {}
-      stepTemplate:
-        volumeMounts:
-        - mountPath: /var/workdir
-          name: shared-workspace
-          readOnly: false
       sidecars:
       - image: $(params.PROXY_IMAGE)
         name: frontend-dev-proxy
@@ -996,8 +987,6 @@ spec:
         securityContext:
           privileged: false
         volumeMounts:
-        - name: shared-workspace
-          mountPath: /var/workdir
         - name: chrome-dev-caddyfile
           mountPath: /etc/caddy
       - name: run-application
@@ -1007,9 +996,6 @@ spec:
         - $(params.run-app-script)
         securityContext:
           privileged: false
-        volumeMounts:
-        - name: shared-workspace
-          mountPath: /var/workdir
       steps:
         - name: use-trusted-artifact
           image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
