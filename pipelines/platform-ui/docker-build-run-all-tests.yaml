@@ -1046,6 +1046,7 @@ spec:
                   name: $(params.CREDENTIALS_SECRET)
                   key: e2e-hcc-env-url
           name: e2e-tests
+          workingDir: /var/workdir
           computeResources:
             requests:
               cpu: "2000m"
