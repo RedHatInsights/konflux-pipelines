@@ -29,6 +29,13 @@
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Disable non-iop Konflux pipeline updates for foreman/satellite branches",
+      "matchManagers": ["tekton"],
+      "matchFileNames": ["!.tekton/iop-*.yaml"],
+      "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Konflux pipeline updates for foreman/satellite branches with weekly schedule",
       "matchManagers": ["tekton"],
       "enabled": true,
