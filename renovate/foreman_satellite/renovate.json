@@ -18,6 +18,14 @@
       "description": "Disale all managers except specific managers on foreman/satellite branches",
       "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
       "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Updates of Dockerfile and RPMs for foreman/satellite branches with immediate schedule",
+      "matchManagers": ["dockerfile", "rpm-lockfile"],
+      "groupName": "foreman-satellite-base-updates",
+      "enabled": true,
+      "schedule": ["at any time"]
     }
   ]
 }
