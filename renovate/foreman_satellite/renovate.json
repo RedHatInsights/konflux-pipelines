@@ -15,9 +15,31 @@
   "packageRules": [
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
-      "description": "Disale all managers except specific managers on foreman/satellite branches",
+      "description": "Disable all managers except specific managers on foreman/satellite branches",
       "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
       "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Updates of Dockerfile and RPMs for foreman/satellite branches with immediate schedule",
+      "matchManagers": ["dockerfile", "rpm-lockfile"],
+      "groupName": "foreman-satellite-base-updates",
+      "enabled": true,
+      "schedule": ["at any time"]
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Disable non-iop Konflux pipeline updates for foreman/satellite branches",
+      "matchManagers": ["tekton"],
+      "matchFileNames": ["!.tekton/iop-*.yaml"],
+      "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Konflux pipeline updates for foreman/satellite branches with weekly schedule",
+      "matchManagers": ["tekton"],
+      "enabled": true,
+      "schedule": ["every weekend"]
     }
   ]
 }
