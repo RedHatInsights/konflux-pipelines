@@ -682,21 +682,16 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
+    - name: shared-workspace
+      workspace: workspace
     taskSpec:
       params:
       - description: The Trusted Artifact URI pointing to the artifact with the application source code.
         name: SOURCE_ARTIFACT
         type: string
-      volumes:
-          # New volume to store a copy of the source code accessible only to this Task.
-      - name: workdir
-        emptyDir: {}
-      stepTemplate:
-        volumeMounts:
-        - mountPath: /var/workdir
-          name: workdir
-          readOnly: false
-      sidecars:
+      workspaces:
+      - name: shared-workspace
+        mountPath: /var/workdir
       steps:
       - name: use-trusted-artifact
         image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
@@ -736,9 +731,12 @@ spec:
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
+    - run-unit-tests
     workspaces:
     - name: basic-auth
       workspace: git-auth
+    - name: shared-workspace
+      workspace: workspace
     taskSpec:
       params:
         - description: The Trusted Artifact URI pointing to the test source code
@@ -771,9 +769,10 @@ spec:
         - description: Name of the secret containing e2e credentials
           name: CREDENTIALS_SECRET
           type: string
+      workspaces:
+      - name: shared-workspace
+        mountPath: /var/workdir
       volumes:
-      - name: workdir
-        emptyDir: {}
       - name: proxy-config
         emptyDir: {}
       - name: proxy-routes-configmap
@@ -785,11 +784,6 @@ spec:
             path: routes
       - name: chrome-dev-caddyfile
         emptyDir: {}
-      stepTemplate:
-        volumeMounts:
-        - mountPath: /var/workdir
-          name: workdir
-          readOnly: false
       sidecars:
       - image: $(params.PROXY_IMAGE)
         name: frontend-dev-proxy
@@ -994,8 +988,6 @@ spec:
         securityContext:
           privileged: false
         volumeMounts:
-        - name: workdir
-          mountPath: /var/workdir
         - name: chrome-dev-caddyfile
           mountPath: /etc/caddy
       - name: run-application
@@ -1005,15 +997,7 @@ spec:
         - $(params.run-app-script)
         securityContext:
           privileged: false
-        volumeMounts:
-        - name: workdir
-          mountPath: /var/workdir
       steps:
-        - name: use-trusted-artifact
-          image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
-          args:
-            - use
-            - $(params.SOURCE_ARTIFACT)=/var/workdir
         - name: setup-proxy-routes
           image: quay.io/quay/busybox
           script: |
@@ -1062,6 +1046,7 @@ spec:
                   name: $(params.CREDENTIALS_SECRET)
                   key: e2e-hcc-env-url
           name: e2e-tests
+          workingDir: /var/workdir
           computeResources:
             requests:
               cpu: "2000m"
