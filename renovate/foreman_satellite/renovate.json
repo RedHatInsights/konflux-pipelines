@@ -32,6 +32,25 @@
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Disable non-security RPM updates for foreman/satellite branches",
+      "matchManagers": ["rpm-lockfile"],
+      "matchJsonata": [
+          "$not($exists(isVulnerabilityAlert)) or isVulnerabilityAlert = false"
+      ],
+      "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Updates of security RPMs for foreman/satellite branches with immediate schedule",
+      "matchManagers": ["rpm-lockfile"],
+      "matchJsonata": [
+          "$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"
+      ],
+      "enabled": true,
+      "schedule": ["at any time"]
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Disable non-iop Konflux pipeline updates for foreman/satellite branches",
       "matchManagers": ["tekton"],
       "matchFileNames": ["!.tekton/iop-*.yaml"],
