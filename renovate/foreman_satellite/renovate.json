@@ -22,8 +22,30 @@
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Updates of Dockerfile and RPMs for foreman/satellite branches with immediate schedule",
-      "matchManagers": ["dockerfile", "rpm-lockfile"],
-      "groupName": "foreman-satellite-base-updates",
+      "matchManagers": ["dockerfile"],
+      "enabled": true,
+      "postUpgradeTasks": {
+        "commands": ["rpm-lockfile-prototype rpms.in.yaml"],
+        "fileFilters": ["**/rpms.lock.yaml"]
+      },
+      "schedule": ["at any time"]
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Disable non-security RPM updates for foreman/satellite branches",
+      "matchManagers": ["rpm-lockfile"],
+      "matchJsonata": [
+          "$not($exists(isVulnerabilityAlert)) or isVulnerabilityAlert = false"
+      ],
+      "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Updates of security RPMs for foreman/satellite branches with immediate schedule",
+      "matchManagers": ["rpm-lockfile"],
+      "matchJsonata": [
+          "$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"
+      ],
       "enabled": true,
       "schedule": ["at any time"]
     },
