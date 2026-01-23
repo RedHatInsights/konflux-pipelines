@@ -94,6 +94,17 @@ This allows consuming pipelines to provide a script that dynamically generates r
 
 ### Pipeline Parameters
 
+- **workspace-setup-script** (optional): Script to set up the workspace before tests
+  - Runs once before both unit tests and e2e tests
+  - Typically used for dependency installation (e.g., `npm install`)
+  - Uses shared workspace, making installed dependencies available to all test tasks
+  - Default: empty string (task is skipped if not provided)
+  - Must include shebang (`#!/bin/bash` or `#!/bin/sh`)
+
+- **unit-tests-script**: Script to execute unit tests
+  - Should focus on running tests, not installing dependencies
+  - Dependencies should be installed via workspace-setup-script
+
 - **proxy-routes-script**: Script to generate proxy routes configuration
   - Receives Tekton-interpolated parameters
   - Outputs Caddyfile `handle` directives
@@ -106,6 +117,7 @@ This allows consuming pipelines to provide a script that dynamically generates r
 - **e2e-tests-script**: Script to execute E2E tests
   - Waits for servers to be ready
   - Runs Playwright tests
+  - Should focus on running tests, not installing dependencies
 
 ### Task Parameters
 
@@ -142,6 +154,39 @@ handle ${route} {
 }
 EOF
 done < /tmp/routes_input.txt
+```
+
+Example `workspace-setup-script`:
+```bash
+#!/bin/bash
+set -ex
+
+# Install npm dependencies
+npm install
+
+# Any other workspace setup needed
+# e.g., npm run build-shared-libs
+```
+
+Example `unit-tests-script` (after workspace setup):
+```bash
+#!/bin/bash
+set -ex
+
+# Just run tests - dependencies already installed
+npm run lint
+npm test -- --runInBand --no-cache
+```
+
+Example `e2e-tests-script` (after workspace setup):
+```bash
+#!/bin/bash
+set -ex
+
+# Just run e2e tests - dependencies already installed
+echo "E2E_USER is ${E2E_USER}"
+./node_modules/.bin/playwright install --with-deps
+./node_modules/.bin/playwright test
 ```
 
 ## Security Considerations
