@@ -143,7 +143,7 @@ spec:
     description: The format for the resulting image's mediaType. Valid values are oci or docker.
   - name: target-stage
     default: ""
-    description: Target stage in Dockerfile to build
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
     type: string
   results:
   - description: ""
