@@ -124,6 +124,10 @@ spec:
     default: docker
     type: string
     description: The format for the resulting image's mediaType. Valid values are oci or docker.
+  - name: target-stage
+    default: ""
+    description: Target stage in Dockerfile to build
+    type: string
   results:
   - description: ""
     name: IMAGE_URL
@@ -242,6 +246,8 @@ spec:
       value: $(params.build-container-additional-secret)
     - name: BUILDAH_FORMAT
       value: $(params.buildah-format)
+    - name: TARGET_STAGE
+      value: $(params.target-stage)
     runAfter:
     - prefetch-dependencies
     taskRef:
