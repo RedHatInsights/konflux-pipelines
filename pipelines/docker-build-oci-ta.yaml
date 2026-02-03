@@ -110,6 +110,10 @@ spec:
     default: 'false'
     description: Enable cache proxy configuration
     type: string
+  - name: target-stage
+    default: ""
+    description: Target stage in Dockerfile to build. If not specified, the Dockerfile is processed entirely to (and including) its last stage.
+    type: string
   results:
   - description: ""
     name: IMAGE_URL
@@ -241,6 +245,8 @@ spec:
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
       value: $(tasks.init.results.no-proxy)
+    - name: TARGET_STAGE
+      value: $(params.target-stage)
     runAfter:
     - prefetch-dependencies
     taskRef:
