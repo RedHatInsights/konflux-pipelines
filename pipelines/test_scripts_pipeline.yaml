@@ -5,13 +5,12 @@ kind: Pipeline
 metadata:
   name: test_script_pipeline
 spec:
-  finally:
   workspaces:
-  - name: workspace
   - name: git-auth
     optional: true
   - name: netrc
     optional: true
+
   params:
   - default: ""
     description: Script which will be executed as part of testing
