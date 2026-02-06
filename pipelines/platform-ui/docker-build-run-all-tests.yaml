@@ -826,6 +826,7 @@ spec:
           #!/bin/sh
           echo "Waiting for /config/routes to be available..."
           timeout=60
+          max_wait=120
           elapsed=0
           while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
             echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
@@ -845,6 +846,31 @@ spec:
           # Export LOCAL_ROUTES environment variable from the file
           export LOCAL_ROUTES="$(cat /config/routes)"
           echo "LOCAL_ROUTES environment variable set"
+
+          # Debug: Print environment variables
+          echo "=== Environment Variables Debug ==="
+          echo "HCC_ENV_URL: ${HCC_ENV_URL:-NOT_SET}"
+          echo "STAGE_ACTUAL_HOSTNAME: ${STAGE_ACTUAL_HOSTNAME:-NOT_SET}"
+          echo "HCC_ENV: ${HCC_ENV:-NOT_SET}"
+          echo "PROXY_PORT: ${PROXY_PORT:-NOT_SET}"
+          echo "==================================="
+
+          # Validate and test connectivity to HCC_ENV_URL
+          if [ -z "${HCC_ENV_URL}" ]; then
+            echo "ERROR: HCC_ENV_URL environment variable is not set!"
+            echo "This is required for proxying chrome and other upstream routes."
+            exit 1
+          fi
+
+          echo "=== Testing connectivity to HCC_ENV_URL ==="
+          echo "Attempting to reach: ${HCC_ENV_URL}"
+          if wget --spider --timeout=10 --tries=2 "${HCC_ENV_URL}" 2>&1; then
+            echo "SUCCESS: Can reach HCC_ENV_URL"
+          else
+            echo "WARNING: Could not reach HCC_ENV_URL - this may cause 502 errors"
+            echo "Check network connectivity and that HCC_ENV_URL is correct"
+          fi
+          echo "============================================"
 
           # Check if Caddyfile exists and contains {$LOCAL_ROUTES} placeholder
           echo "Checking for {$LOCAL_ROUTES} placeholder in Caddyfile..."
