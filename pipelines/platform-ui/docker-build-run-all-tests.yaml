@@ -139,10 +139,6 @@ spec:
     name: e2e-playwright-image
     type: string
     default: "quay.io/btweed/playwright_e2e:latest"
-  - description: Chrome dev image
-    name: e2e-chrome-dev-image
-    type: string
-    default: "quay.io/redhat-services-prod/hcc-platex-services-tenant/insights-chrome-dev:latest"
   - description: Frontend proxy image
     name: e2e-proxy-image
     type: string
@@ -765,8 +761,6 @@ spec:
         value: $(params.e2e-app-port)
       - name: PLAYWRIGHT_IMAGE
         value: $(params.e2e-playwright-image)
-      - name: CHROME_DEV_IMAGE
-        value: $(params.e2e-chrome-dev-image)
       - name: PROXY_IMAGE
         value: $(params.e2e-proxy-image)
       - name: CREDENTIALS_SECRET
@@ -804,9 +798,6 @@ spec:
         - description: Playwright image to use for testing
           name: PLAYWRIGHT_IMAGE
           type: string
-        - description: Chrome dev image
-          name: CHROME_DEV_IMAGE
-          type: string
         - description: Frontend proxy image
           name: PROXY_IMAGE
           type: string
@@ -826,8 +817,6 @@ spec:
           items:
           - key: routes
             path: routes
-      - name: chrome-dev-caddyfile
-        emptyDir: {}
       sidecars:
       - image: $(params.PROXY_IMAGE)
         name: frontend-dev-proxy
@@ -837,6 +826,7 @@ spec:
           #!/bin/sh
           echo "Waiting for /config/routes to be available..."
           timeout=60
+          max_wait=120
           elapsed=0
           while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
             echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
@@ -853,9 +843,16 @@ spec:
           echo "Routes content:"
           cat /config/routes
 
-          # Export LOCAL_ROUTES environment variable from the file
-          export LOCAL_ROUTES="$(cat /config/routes)"
+          # Export LOCAL_ROUTES environment variable from the file, replacing {env.HCC_ENV_URL} with actual value
+          export LOCAL_ROUTES="$(cat /config/routes | sed "s|{env.HCC_ENV_URL}|${HCC_ENV_URL}|g")"
           echo "LOCAL_ROUTES environment variable set"
+
+          # Validate HCC_ENV_URL is set
+          if [ -z "${HCC_ENV_URL}" ]; then
+            echo "ERROR: HCC_ENV_URL environment variable is not set!"
+            echo "This is required for proxying chrome and other upstream routes."
+            exit 1
+          fi
 
           # Check if Caddyfile exists and contains {$LOCAL_ROUTES} placeholder
           echo "Checking for {$LOCAL_ROUTES} placeholder in Caddyfile..."
@@ -914,26 +911,6 @@ spec:
           echo "Updated /etc/caddy/Caddyfile follows:"
           cat /etc/caddy/Caddyfile
 
-
-          # Wait for insights-chrome-dev to be ready on port 9912
-          echo "Waiting for insights-chrome-dev to be ready on port 9912..."
-          max_wait=60
-          elapsed=0
-          while [ $elapsed -lt $max_wait ]; do
-            if wget -q -O /dev/null --timeout=2 http://127.0.0.1:9912 2>/dev/null; then
-              echo "insights-chrome-dev is ready!"
-              break
-            fi
-            echo "Waiting for insights-chrome-dev... ($elapsed/$max_wait seconds)"
-            sleep 2
-            elapsed=$((elapsed + 2))
-          done
-
-          if [ $elapsed -ge $max_wait ]; then
-            echo "ERROR: insights-chrome-dev did not become ready after ${max_wait} seconds"
-            exit 1
-          fi
-
           # Wait for run-application to be ready on port 8000
           echo "Waiting for run-application to be ready on port 8000..."
           elapsed=0
@@ -976,69 +953,22 @@ spec:
         volumeMounts:
         - name: proxy-config
           mountPath: /config
-      - image: $(params.CHROME_DEV_IMAGE)
-        name: insights-chrome-dev
-        command: ["/bin/sh", "-c"]
-        args:
-        - |
-          #!/bin/sh
-          set -e
-
-          echo "Creating Caddyfile for insights-chrome-dev..."
-          mkdir -p /etc/caddy
-          cat > /etc/caddy/Caddyfile << 'EOF'
-          {
-            debug
-          }
-
-          :9912 {
-              root * /srv/dist
-
-              # Handle /apps/chrome* requests - strip prefix and serve
-              @app_match {
-                  path /apps/chrome*
-              }
-              handle @app_match {
-                  uri strip_prefix /apps/chrome
-                  file_server {
-                      browse
-                  }
-              }
-
-              # Handle all other requests - try files, fallback to index.html for SPA routing
-              handle {
-                  try_files {path} /index.html
-                  file_server
-              }
-
-              header {
-                  Cache-Control "no-cache, no-store, must-revalidate"
-                  Pragma "no-cache"
-                  Expires "0"
-              }
-              header {
-                  Access-Control-Allow-Origin "*"
-                  Access-Control-Allow-Methods "GET, POST, OPTIONS"
-                  Access-Control-Allow-Headers "Content-Type"
-              }
-          }
-          EOF
-
-          echo "Caddyfile created successfully:"
-          cat /etc/caddy/Caddyfile
-
-          echo "Starting caddy..."
-          exec caddy run --config /etc/caddy/Caddyfile
-        securityContext:
-          privileged: false
-        volumeMounts:
-        - name: chrome-dev-caddyfile
-          mountPath: /etc/caddy
       - name: run-application
         image: $(params.APPLICATION_IMAGE)
         command: ["/bin/sh", "-c"]
         args:
         - $(params.run-app-script)
+        env:
+        - name: HCC_ENV_URL
+          valueFrom:
+            secretKeyRef:
+              name: $(params.CREDENTIALS_SECRET)
+              key: e2e-hcc-env-url
+        - name: STAGE_ACTUAL_HOSTNAME
+          valueFrom:
+            secretKeyRef:
+              name: $(params.CREDENTIALS_SECRET)
+              key: e2e-stage-actual-hostname
         securityContext:
           privileged: false
       steps:
