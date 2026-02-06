@@ -840,12 +840,14 @@ spec:
           fi
 
           echo "Config file found!"
-          echo "Routes content:"
+          echo "Routes content (before substitution):"
           cat /config/routes
 
-          # Export LOCAL_ROUTES environment variable from the file
-          export LOCAL_ROUTES="$(cat /config/routes)"
-          echo "LOCAL_ROUTES environment variable set"
+          # Export LOCAL_ROUTES environment variable from the file, replacing {env.HCC_ENV_URL} with actual value
+          export LOCAL_ROUTES="$(cat /config/routes | sed "s|{env.HCC_ENV_URL}|${HCC_ENV_URL}|g")"
+          echo "LOCAL_ROUTES environment variable set (after HCC_ENV_URL substitution)"
+          echo "Routes content (after substitution):"
+          echo "$LOCAL_ROUTES"
 
           # Debug: Print environment variables
           echo "=== Environment Variables Debug ==="
