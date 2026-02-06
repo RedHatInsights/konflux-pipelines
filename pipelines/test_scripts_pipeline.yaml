@@ -47,6 +47,27 @@ spec:
     type: string
     description: Component name
     default: ""
+  - default: "false"
+    description: Force rebuild image
+    name: rebuild
+    type: string
+  - name: SNAPSHOT
+    type: string
+    description: |
+      Spec section of an ApplicationSnapshot resource. Not all fields of the
+      resource are required. A minimal example:
+        {
+          "components": [
+            {
+              "containerImage": "quay.io/example/repo:latest"
+            }
+          ]
+        }
+      Each "containerImage" in the "components" array is validated.
+  - default: "v4.15"
+    description: Tag of the OpenShift CLI from registry.redhat.io/openshift4/ose-cli to use for ephemeral namespace tasks.
+    name: ephemeral-namespace-oc-cli-version
+    type: string
 
   tasks:
   - name: init
