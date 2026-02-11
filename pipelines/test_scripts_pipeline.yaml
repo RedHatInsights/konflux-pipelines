@@ -1,0 +1,289 @@
+---
+# Single arch build (amd64)
+# Note, that we keep the multi-arch filename because we dont want to change refs in all repos
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: test_script_pipeline
+spec:
+  workspaces:
+    - name: git-auth
+      optional: true
+    - name: netrc
+      optional: true
+
+  params:
+    - default: ""
+      description: Script which will be executed as part of testing
+      name: script-to-execute
+      type: string
+    - default: ""
+      description: Script to run in ephemeral namespace. If empty, ephemeral namespace tasks are skipped.
+      name: ephemeral-namespace-run-script
+      type: string
+      # https://catalog.redhat.com/software/containers/openshift4/ose-cli/5cd9ba3f5a13467289f4d51d/history?architecture=amd64
+    - default: "false"
+      description: Skip checks against built image
+      name: skip-checks
+      type: string
+    - name: enable-cache-proxy
+      default: 'false'
+      description: Enable cache proxy configuration
+      type: string
+    # - description: Source Repository URL
+    #   name: git-url
+    #   type: string
+    - default: ""
+      description: Revision of the Source Repository
+      name: revision
+      type: string
+    - description: Fully Qualified Output Image
+      name: output-image
+      type: string
+    - default: ""
+      description: Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
+      name: image-expires-after
+    - name: component-name
+      type: string
+      description: Component name
+      default: ""
+    - default: "false"
+      description: Force rebuild image
+      name: rebuild
+      type: string
+    - name: SNAPSHOT
+      type: string
+      description: |
+        Spec section of an ApplicationSnapshot resource. Not all fields of the
+        resource are required. A minimal example:
+          {
+            "components": [
+              {
+                "containerImage": "quay.io/example/repo:latest"
+              }
+            ]
+          }
+        Each "containerImage" in the "components" array is validated.
+    - default: "v4.15"
+      description: Tag of the OpenShift CLI from registry.redhat.io/openshift4/ose-cli to use for ephemeral namespace tasks.
+      name: ephemeral-namespace-oc-cli-version
+      type: string
+    - name: HOMEDIR
+      type: string
+      description: Value for the HOME environment variable.
+      default: /tekton/home
+
+  tasks:
+    # - name: init
+    #   params:
+    #     # - name: image-url
+    #     #   value: $(params.output-image)
+    #     - name: rebuild
+    #       value: $(params.rebuild)
+    #     - name: skip-checks
+    #       value: $(params.skip-checks)
+    #     - name: enable-cache-proxy
+    #       value: $(params.enable-cache-proxy)
+    #   taskRef:
+    #     params:
+    #       - name: name
+    #         value: init
+    #       - name: bundle
+    #         value: quay.io/konflux-ci/tekton-catalog/task-init:0.2@sha256:b349d24cb896573695802d6913d311640b44675ec082b3ad167721946a6a0a71
+    #       - name: kind
+    #         value: task
+    #     resolver: bundles
+
+    - name: return-git-rev-url
+      params:
+        - name: SNAPSHOT
+          # value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
+          value: $(params.SNAPSHOT)
+        - name: SINGLE_COMPONENT
+          value: $(params.component-name)
+        # - name: SNAPSHOT_PATH
+        #  value: $(params.HOMEDIR)/snapshot.json
+        - name: HOME
+          value: $(params.HOMEDIR)
+      taskSpec:
+        params:
+          - name: SINGLE_COMPONENT
+            # value: $(params.component-name)
+            type: string
+          - name: SNAPSHOT
+            # value: $(params.HOMEDIR)/snapshot.json
+            type: string
+          - name: HOME
+            type: string
+
+        steps:
+          - name: ec-cli
+            image: quay.io/enterprise-contract/ec-cli:snapshot
+            onError: continue # progress even if the step fails so we can see the debug logs
+            script: |
+              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.url' > "${GIT_URL}"
+              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.revision' > "${GIT_REVISION}"
+              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .containerImage' > "${CONTAINER_IMAGE}"
+            env:
+              - name: HOME
+                value: $(params.HOMEDIR)
+              - name: SNAPSHOT
+                # value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
+                value: $(params.SNAPSHOT)
+              - name: SINGLE_COMPONENT
+                value: $(params.component-name)
+              # - name: SNAPSHOT_PATH
+              #   value: $(params.HOMEDIR)/snapshot.json
+              - name: GIT_URL
+                value: $(results.git-url.path)
+              - name: GIT_REVISION
+                value: $(results.git-revision.path)
+              - name: CONTAINER_IMAGE
+                value: $(results.container-image.path)
+        results:
+          - name: git-url
+          - name: git-revision
+          - name: container-image
+      # runAfter:
+      #  - init
+
+    - name: clone-repository-oci-ta
+      params:
+        - name: url
+          value: $(tasks.return-git-rev-url.results.git-url)
+        - name: revision
+          value: $(tasks.return-git-rev-url.results.git-revision)
+        - name: ociStorage
+          value: $(params.output-image).git
+        - name: ociArtifactExpiresAfter
+          value: $(params.image-expires-after)
+      runAfter:
+        - return-git-rev-url
+      taskRef:
+        params:
+          - name: name
+            value: git-clone-oci-ta
+          - name: bundle
+            value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:306b69e6db435ad4a7cf258b6219d9b998eb37da44f5e9ac882ac86a08109154
+          - name: kind
+            value: task
+        resolver: bundles
+      when:
+        # - input: $(tasks.init.results.build)
+        #   operator: in
+        #   values:
+        #     - "true"
+        - input: $(tasks.return-git-rev-url.results.git-url)
+          operator: in
+          values:
+            - "true"
+      workspaces:
+        - name: basic-auth
+          workspace: git-auth
+
+    - name: deploy-ephemeral-namespace
+      runAfter:
+        - clone-repository-oci-ta
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: https://github.com/konflux-ci/build-definitions.git
+          - name: revision
+            # Note, we must use a concrete commit ID or enterprise contract will fail
+            # The violation log will show you the allowed/trusted commit ref to use
+            value: 05686269c33b8f1aac66252c0c7b859b42dca2ed
+          - name: pathInRepo
+            value: task/eaas-provision-space/0.1/eaas-provision-space.yaml
+          - name: shortCommitLength
+            value: 7
+      params:
+        - name: ownerName
+          value: $(context.pipelineRun.name)
+        - name: ownerUid
+          value: $(context.pipelineRun.uid)
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values:
+            - "false"
+
+      # For task compliance follow https://konflux.pages.redhat.com/docs/users/building/using-trusted-artifacts.html#migrate-to-trusted-artifacts
+    - name: run-custom-script-in-ephemeral-namespace
+      runAfter:
+        - deploy-ephemeral-namespace
+      params:
+        - name: SOURCE_ARTIFACT
+          value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
+        - name: SCRIPT_PATH
+          value: $(params.ephemeral-namespace-run-script)
+        - name: CONTAINER_IMAGE
+          value: $(tasks.return-git-rev-url.results.container-image)
+          # - name: IMAGE_URL
+          #   value: $(tasks.build-image-index.results.IMAGE_URL)
+          # - name: IMAGE_DIGEST
+          #   value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+        - name: SNAPSHOT
+          value: $(params.SNAPSHOT)
+      taskSpec:
+        params:
+          - description: The Trusted Artifact URI pointing to the artifact with the application source code.
+            name: SOURCE_ARTIFACT
+            type: string
+        stepTemplate:
+          volumeMounts:
+            - mountPath: /var/workdir
+              name: workdir
+        volumes:
+            # New volume to store a copy of the source code accessible only to this Task.
+          - name: workdir
+            emptyDir: {}
+        steps:
+            # New step to fetch the Trusted Artifact and make it available to the next steps.
+          - name: use-trusted-artifact
+            image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+            args:
+              - use
+              - $(params.SOURCE_ARTIFACT)=/var/workdir/source
+          - name: run-script
+            image: registry.redhat.io/openshift4/ose-cli:$(params.ephemeral-namespace-oc-cli-version)
+            workingDir: /var/workdir/source
+            env:
+              - name: KUBECONFIG_VALUE
+                valueFrom:
+                  secretKeyRef:
+                    name: "$(tasks.deploy-ephemeral-namespace.results.secretRef)"
+                    key: kubeconfig
+              - name: SCRIPT_PATH
+                value: $(params.ephemeral-namespace-run-script)
+              # - name: IMAGE_URL
+              #   value: $(tasks.build-image-index.results.IMAGE_URL)
+              # - name: IMAGE_DIGEST
+              #   value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              # Expose KUBECONFIG for test namespace
+              echo "$KUBECONFIG_VALUE" > /tmp/cfg
+              export KUBECONFIG=/tmp/cfg
+
+              # SNAPSHOT var
+              echo "$SNAPSHOT"
+
+              # exploring workspace
+              ls -ltr /workspace
+              cat /workspace/snapshot.json
+
+              echo "Running script ${SCRIPT_PATH}"
+              chmod +x ./${SCRIPT_PATH}
+              ./${SCRIPT_PATH}
+      when:
+        - input: $(params.skip-checks)
+          operator: in
+          values:
+            - "false"
+        - input: $(params.ephemeral-namespace-run-script)
+          operator: notin
+          values:
+            - ""
