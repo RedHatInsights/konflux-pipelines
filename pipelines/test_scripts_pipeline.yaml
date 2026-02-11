@@ -30,16 +30,16 @@ spec:
       default: 'false'
       description: Enable cache proxy configuration
       type: string
-    - description: Source Repository URL
-      name: git-url
-      type: string
+    # - description: Source Repository URL
+    #   name: git-url
+    #   type: string
     - default: ""
       description: Revision of the Source Repository
       name: revision
       type: string
-      # - description: Fully Qualified Output Image
-      #  name: output-image
-      #  type: string
+    - description: Fully Qualified Output Image
+      name: output-image
+      type: string
     - default: ""
       description: Image tag expiration time, time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
@@ -68,58 +68,72 @@ spec:
       description: Tag of the OpenShift CLI from registry.redhat.io/openshift4/ose-cli to use for ephemeral namespace tasks.
       name: ephemeral-namespace-oc-cli-version
       type: string
+    - name: HOMEDIR
+      type: string
+      description: Value for the HOME environment variable.
+      default: /tekton/home
 
   tasks:
-    - name: init
-      params:
-        # - name: image-url
-        #   value: $(params.output-image)
-        - name: rebuild
-          value: $(params.rebuild)
-        - name: skip-checks
-          value: $(params.skip-checks)
-        - name: enable-cache-proxy
-          value: $(params.enable-cache-proxy)
-      taskRef:
-        params:
-          - name: name
-            value: init
-          - name: bundle
-            value: quay.io/konflux-ci/tekton-catalog/task-init:0.2@sha256:b349d24cb896573695802d6913d311640b44675ec082b3ad167721946a6a0a71
-          - name: kind
-            value: task
-        resolver: bundles
+    # - name: init
+    #   params:
+    #     # - name: image-url
+    #     #   value: $(params.output-image)
+    #     - name: rebuild
+    #       value: $(params.rebuild)
+    #     - name: skip-checks
+    #       value: $(params.skip-checks)
+    #     - name: enable-cache-proxy
+    #       value: $(params.enable-cache-proxy)
+    #   taskRef:
+    #     params:
+    #       - name: name
+    #         value: init
+    #       - name: bundle
+    #         value: quay.io/konflux-ci/tekton-catalog/task-init:0.2@sha256:b349d24cb896573695802d6913d311640b44675ec082b3ad167721946a6a0a71
+    #       - name: kind
+    #         value: task
+    #     resolver: bundles
 
     - name: return-git-rev-url
       params:
         - name: SNAPSHOT
-          value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
+          # value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
+          value: $(params.SNAPSHOT)
         - name: SINGLE_COMPONENT
           value: $(params.component-name)
-        - name: SNAPSHOT_PATH
-          value: $(params.HOMEDIR)/snapshot.json
+        # - name: SNAPSHOT_PATH
+        #  value: $(params.HOMEDIR)/snapshot.json
+        - name: HOME
+          value: $(params.HOMEDIR)
       taskSpec:
         params:
           - name: SINGLE_COMPONENT
-            value: $(params.component-name)
-          - name: SNAPSHOT_PATH
-            value: $(params.HOMEDIR)/snapshot.json
+            # value: $(params.component-name)
+            type: string
+          - name: SNAPSHOT
+            # value: $(params.HOMEDIR)/snapshot.json
+            type: string
+          - name: HOME
+            type: string
 
         steps:
           - name: ec-cli
             image: quay.io/enterprise-contract/ec-cli:snapshot
             onError: continue # progress even if the step fails so we can see the debug logs
             script: |
-              jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.url' $SNAPSHOT_PATH > "${GIT_URL}"
-              jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.revision' $SNAPSHOT_PATH > "${GIT_REVISION}"
-              jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .containerImage' $SNAPSHOT_PATH > "${CONTAINER_IMAGE}"
+              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.url' > "${GIT_URL}"
+              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.revision' > "${GIT_REVISION}"
+              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .containerImage' > "${CONTAINER_IMAGE}"
             env:
+              - name: HOME
+                value: $(params.HOMEDIR)
               - name: SNAPSHOT
-                value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
+                # value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
+                value: $(params.SNAPSHOT)
               - name: SINGLE_COMPONENT
                 value: $(params.component-name)
-              - name: SNAPSHOT_PATH
-                value: $(params.HOMEDIR)/snapshot.json
+              # - name: SNAPSHOT_PATH
+              #   value: $(params.HOMEDIR)/snapshot.json
               - name: GIT_URL
                 value: $(results.git-url.path)
               - name: GIT_REVISION
@@ -130,17 +144,17 @@ spec:
           - name: git-url
           - name: git-revision
           - name: container-image
-      runAfter:
-        - init
+      # runAfter:
+      #  - init
 
     - name: clone-repository-oci-ta
       params:
         - name: url
           value: $(tasks.return-git-rev-url.results.git-url)
         - name: revision
-          value: $(params.return-git-rev-url.results.git-revision)
-        # - name: ociStorage
-        #   value: $(params.output-image).git
+          value: $(tasks.return-git-rev-url.results.git-revision)
+        - name: ociStorage
+          value: $(params.output-image).git
         - name: ociArtifactExpiresAfter
           value: $(params.image-expires-after)
       runAfter:
@@ -155,11 +169,11 @@ spec:
             value: task
         resolver: bundles
       when:
-        - input: $(tasks.init.results.build)
-          operator: in
-          values:
-            - "true"
-        - input: $(tasks.return-git-rev-url.results.build)
+        # - input: $(tasks.init.results.build)
+        #   operator: in
+        #   values:
+        #     - "true"
+        - input: $(tasks.return-git-rev-url.results.git-url)
           operator: in
           values:
             - "true"
@@ -204,7 +218,7 @@ spec:
         - name: SCRIPT_PATH
           value: $(params.ephemeral-namespace-run-script)
         - name: CONTAINER_IMAGE
-          value: $(params.return-git-rev-url.results.container-image)
+          value: $(tasks.return-git-rev-url.results.container-image)
           # - name: IMAGE_URL
           #   value: $(tasks.build-image-index.results.IMAGE_URL)
           # - name: IMAGE_DIGEST
