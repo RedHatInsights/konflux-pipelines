@@ -58,15 +58,13 @@ This allows consuming pipelines to provide a script that dynamically generates r
 │  │  Tests          │─▶│  (Port 1337)         │    │
 │  └─────────────────┘  └──────────────────────┘    │
 │                        │                           │
-│                        ├─ /apps/chrome* → 9912    │
-│                        ├─ /apps/app* → 8000       │
-│                        └─ /other* → 9912          │
+│                        ├─ Custom routes → 8000    │
+│                        └─ Default → Upstream      │
 │                                                     │
-│  ┌─────────────────┐  ┌──────────────────────┐    │
-│  │  Chrome Dev     │  │  Application         │    │
-│  │  Server         │  │  (Port 8000)         │    │
-│  │  (Port 9912)    │  │  + Caddyfile routes  │    │
-│  └─────────────────┘  └──────────────────────┘    │
+│  ┌──────────────────────────────────────────┐     │
+│  │  Application (Port 8000)                 │     │
+│  │  + Caddyfile routes                      │     │
+│  └──────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -77,16 +75,13 @@ This allows consuming pipelines to provide a script that dynamically generates r
    - Serves static files via Caddy
    - Handles application-specific routes defined by `run-app-script`
 
-2. **Chrome Dev Server** (Port 9912):
-   - Provides Chrome UI shell
-   - Serves shared frontend infrastructure
-
-3. **Frontend Proxy** (Port 1337):
+2. **Frontend Proxy** (Port 1337):
    - Routes requests based on path
-   - Uses configuration from `proxy-routes-script`
-   - Distributes traffic between application and Chrome server
+   - Uses configuration from ConfigMap
+   - Routes custom app paths to port 8000
+   - Proxies all other requests to upstream environment (HCC_ENV_URL)
 
-4. **Playwright Tests**:
+3. **Playwright Tests**:
    - Connects to `https://stage.foo.redhat.com:1337`
    - Executes E2E test scenarios
 
@@ -122,10 +117,9 @@ This allows consuming pipelines to provide a script that dynamically generates r
 ### Task Parameters
 
 The `run-e2e-tests` task receives:
-- `PROXY_ROUTES_SCRIPT`: The proxy routes generation script
+- `PROXY_ROUTES_CONFIGMAP`: Name of ConfigMap containing proxy routes data
 - `APP_PORT`: Application port (default: 8000)
 - `PLAYWRIGHT_IMAGE`: Image for running tests
-- `CHROME_DEV_IMAGE`: Chrome development server image
 - `PROXY_IMAGE`: Reverse proxy image
 
 ## Usage Example
@@ -205,9 +199,26 @@ Consumer scripts should validate:
   - Path: `.tekton/learning-resources-pull-request.yaml`
   - Demonstrates parameterized route generation
 
+### Recent Changes
+
+#### Chrome Sidecar Removal (btweed/remove-chrome-sidecar)
+
+The `insights-chrome-dev` sidecar has been removed from the pipeline as it was unused in the current architecture. Chrome assets are now served from the upstream environment via the HCC_ENV_URL proxy.
+
+**Impact on Consumer Repositories:**
+- If your ConfigMap routes reference port 9912, these will need to be updated
+- Chrome assets should be fetched from upstream instead
+- The `e2e-chrome-dev-image` parameter has been removed from the pipeline
+
+**Migration Steps for Consumers:**
+1. Review your ConfigMap routes (typically in `.tekton/` directory)
+2. Remove any routes targeting `127.0.0.1:9912` or port 9912
+3. Ensure chrome assets are loaded from the upstream proxy
+4. Test your E2E pipeline after migration
+
 ### Branch Information
 
-- **Branch**: `btweed/platform-ui-e2e`
+- **Branch**: `btweed/remove-chrome-sidecar`
 - **Status**: Development/Testing
 - **Upstream**: To be merged to main branch
 
