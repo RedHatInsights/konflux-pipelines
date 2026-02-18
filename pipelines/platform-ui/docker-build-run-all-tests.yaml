@@ -70,10 +70,6 @@ spec:
     name: dockerfile
     type: string
   - default: "false"
-    description: Force rebuild image
-    name: rebuild
-    type: string
-  - default: "false"
     description: Skip checks against built image
     name: skip-checks
     type: string
@@ -171,12 +167,6 @@ spec:
   tasks:
   - name: init
     params:
-    - name: image-url
-      value: $(params.output-image)
-    - name: rebuild
-      value: $(params.rebuild)
-    - name: skip-checks
-      value: $(params.skip-checks)
     - name: enable-cache-proxy
       value: $(params.enable-cache-proxy)
     taskRef:
@@ -184,7 +174,7 @@ spec:
       - name: name
         value: init
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-init:0.2@sha256:ebf06778aeacbbeb081f9231eafbdfdb8e380ad04e211d7ed80ae9101e37fd82
+        value: quay.io/konflux-ci/tekton-catalog/task-init:0.3@sha256:aa6f8632cc23d605c5942505ff1d00280db16a6fda5c4c56c4ed9ae936b5fbc6
       - name: kind
         value: task
       resolver: bundles
@@ -205,11 +195,6 @@ spec:
       - name: kind
         value: task
       resolver: bundles
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: output
       workspace: workspace
@@ -226,7 +211,7 @@ spec:
       - name: name
         value: prefetch-dependencies
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-prefetch-dependencies:0.2@sha256:c320d5c4427f6548b57c769f3d029472a13755fc0550d097c9bf62fe28cbc2eb
+        value: quay.io/konflux-ci/tekton-catalog/task-prefetch-dependencies:0.2@sha256:6f05f1b9e4c7f6035ccc555dcfb375726a81c605039b76ffde258810922528c5
       - name: kind
         value: task
       resolver: bundles
@@ -282,15 +267,10 @@ spec:
       - name: name
         value: buildah
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-buildah:0.8@sha256:e6831540dcef16b9ae6e4f06f09a08e214a58d780fe34f39618b47cef045eb7e
+        value: quay.io/konflux-ci/tekton-catalog/task-buildah:0.8@sha256:4d0ccdc2d600876efd281f28a19f36361cc34a179595b70675a020431f1105b4
       - name: kind
         value: task
       resolver: bundles
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: source
       workspace: workspace
@@ -316,15 +296,10 @@ spec:
       - name: name
         value: build-image-index
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-build-image-index:0.2@sha256:05d3d8a5ded44c51b074a56a408ddf5d65c56b4c15e110abb1a99e3aff269d49
+        value: quay.io/konflux-ci/tekton-catalog/task-build-image-index:0.2@sha256:30989fa1f475bb8f6bda811b26bd4ddf7187288ed5815ce634ba399341852c75
       - name: kind
         value: task
       resolver: bundles
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
   - name: build-source-image
     params:
     - name: BINARY_IMAGE
@@ -343,10 +318,6 @@ spec:
         value: task
       resolver: bundles
     when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     - input: $(params.build-source-image)
       operator: in
       values:
@@ -389,7 +360,7 @@ spec:
       - name: name
         value: clair-scan
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-clair-scan:0.3@sha256:dadfea7633d82e4303ba73d5e9c7e2bc16834bde0fd7688880453b26452067eb
+        value: quay.io/konflux-ci/tekton-catalog/task-clair-scan:0.3@sha256:b01d8e2c58eb407ac23fa07b8e44c4631f0cf7257e87507c829fa2486aff9804
       - name: kind
         value: task
       resolver: bundles
@@ -409,7 +380,7 @@ spec:
       - name: name
         value: ecosystem-cert-preflight-checks
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-ecosystem-cert-preflight-checks:0.2@sha256:33b7133c0c132c361295c30947f73bd45a3a3b62a24b83f3d8cd7c71f757828c
+        value: quay.io/konflux-ci/tekton-catalog/task-ecosystem-cert-preflight-checks:0.2@sha256:40bc4bcc1c52c114139daee60ec2ddeb59921ecef8a68f241d5593c79b2a21d6
       - name: kind
         value: task
       resolver: bundles
@@ -431,7 +402,7 @@ spec:
       - name: name
         value: sast-snyk-check
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.4@sha256:ba67a34480bad414e355b3041d7257bc72fe1628f2ede10e51f29087d2e2f478
+        value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.4@sha256:d380f0f37219f334340d3660fd42ea4f9f1ec868d8dd72878d0e71ab7fa4469d
       - name: kind
         value: task
       resolver: bundles
@@ -456,7 +427,7 @@ spec:
       - name: name
         value: clamav-scan
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-clamav-scan:0.3@sha256:4f5ccf2324ecef92aaad6e2adb46c0bb15be49b4869b5b407346c514b764404f
+        value: quay.io/konflux-ci/tekton-catalog/task-clamav-scan:0.3@sha256:5b5b31eae9063a00b91acc049b536e548d87c730068e439eefe33ab5238ee118
       - name: kind
         value: task
       resolver: bundles
@@ -521,7 +492,7 @@ spec:
       - name: name
         value: coverity-availability-check
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-coverity-availability-check:0.2@sha256:dc61651cb22ddca5215fc5e537066c5220668c3f06641d9c3558dd15ff089cd7
+        value: quay.io/konflux-ci/tekton-catalog/task-coverity-availability-check:0.2@sha256:a24d8f3cd01ccc54fa6fb73aa57a78f5559a0e58eddfe0583fc9cb97d59b4efc
       - name: kind
         value: task
       resolver: bundles
@@ -543,7 +514,7 @@ spec:
       - name: name
         value: sast-shell-check
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-sast-shell-check:0.1@sha256:200f1f9d901ede118c498bc7d236e2f60fd1a9d83724807b747f3914d90f0f08
+        value: quay.io/konflux-ci/tekton-catalog/task-sast-shell-check:0.1@sha256:1ce77003bd0e39b68df874d1ce72848ca4614c3d5d1c8ef349b892bca0091673
       - name: kind
         value: task
       resolver: bundles
@@ -568,7 +539,7 @@ spec:
       - name: name
         value: sast-unicode-check
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-sast-unicode-check:0.4@sha256:f89dd795dbf751394880b3e033c6ff0a066fe59a88464836c5133f96e515adc5
+        value: quay.io/konflux-ci/tekton-catalog/task-sast-unicode-check:0.4@sha256:c9340e4b3dcfa90d7dd76e9f2ac36c26289528048a91853921fcdd610984a191
       - name: kind
         value: task
       resolver: bundles
@@ -614,7 +585,7 @@ spec:
       - name: name
         value: push-dockerfile
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-push-dockerfile:0.1@sha256:74e982c07a808eaa5b1d8c126cafcbf3cc6ce94c883cf0845b55ce8064674b45
+        value: quay.io/konflux-ci/tekton-catalog/task-push-dockerfile:0.1@sha256:6ac48e8f499553eec5f201848aa275dead47b8f3493dc68eeb74fc8c43c7871f
       - name: kind
         value: task
       resolver: bundles
@@ -634,7 +605,7 @@ spec:
       - name: name
         value: rpms-signature-scan
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-rpms-signature-scan:0.2@sha256:ccd087c879899b4c7fe2e05c5a2fa5b9829f4826fa2bd60e0db5b1d4bf1a716e
+        value: quay.io/konflux-ci/tekton-catalog/task-rpms-signature-scan:0.2@sha256:23f133f47d13e6fd35ad6a65138f5b48bd2e6c4e66a2512991ff9f7d90cd7e0e
       - name: kind
         value: task
       resolver: bundles
@@ -663,11 +634,6 @@ spec:
       - name: kind
         value: task
       resolver: bundles
-    when:
-    - input: $(tasks.init.results.build)
-      operator: in
-      values:
-      - "true"
     workspaces:
     - name: basic-auth
       workspace: git-auth
@@ -747,24 +713,24 @@ spec:
   - name: run-e2e-tests
     description: Runs e2e tests against the built application
     params:
-      - name: SOURCE_ARTIFACT
-        value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
-      - name: APPLICATION_IMAGE
-        value: $(tasks.build-image-index.results.IMAGE_URL)
-      - name: e2e-tests-script
-        value: $(params.e2e-tests-script)
-      - name: run-app-script
-        value: $(params.run-app-script)
-      - name: PROXY_ROUTES_CONFIGMAP
-        value: $(params.frontend-proxy-routes-configmap)
-      - name: APP_PORT
-        value: $(params.e2e-app-port)
-      - name: PLAYWRIGHT_IMAGE
-        value: $(params.e2e-playwright-image)
-      - name: PROXY_IMAGE
-        value: $(params.e2e-proxy-image)
-      - name: CREDENTIALS_SECRET
-        value: $(params.e2e-credentials-secret)
+    - name: SOURCE_ARTIFACT
+      value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
+    - name: APPLICATION_IMAGE
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - name: e2e-tests-script
+      value: $(params.e2e-tests-script)
+    - name: run-app-script
+      value: $(params.run-app-script)
+    - name: PROXY_ROUTES_CONFIGMAP
+      value: $(params.frontend-proxy-routes-configmap)
+    - name: APP_PORT
+      value: $(params.e2e-app-port)
+    - name: PLAYWRIGHT_IMAGE
+      value: $(params.e2e-playwright-image)
+    - name: PROXY_IMAGE
+      value: $(params.e2e-proxy-image)
+    - name: CREDENTIALS_SECRET
+      value: $(params.e2e-credentials-secret)
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
@@ -777,33 +743,33 @@ spec:
       workspace: workspace
     taskSpec:
       params:
-        - description: The Trusted Artifact URI pointing to the test source code
-          name: SOURCE_ARTIFACT
-          type: string
-        - description: The built application image to test
-          name: APPLICATION_IMAGE
-          type: string
-        - description: The script to execute the e2e tests
-          name: e2e-tests-script
-          type: string
-        - description: The script to run the application
-          name: run-app-script
-          type: string
-        - description: Name of ConfigMap containing proxy routes data
-          name: PROXY_ROUTES_CONFIGMAP
-          type: string
-        - description: Application port (default 8000)
-          name: APP_PORT
-          type: string
-        - description: Playwright image to use for testing
-          name: PLAYWRIGHT_IMAGE
-          type: string
-        - description: Frontend proxy image
-          name: PROXY_IMAGE
-          type: string
-        - description: Name of the secret containing e2e credentials
-          name: CREDENTIALS_SECRET
-          type: string
+      - description: The Trusted Artifact URI pointing to the test source code
+        name: SOURCE_ARTIFACT
+        type: string
+      - description: The built application image to test
+        name: APPLICATION_IMAGE
+        type: string
+      - description: The script to execute the e2e tests
+        name: e2e-tests-script
+        type: string
+      - description: The script to run the application
+        name: run-app-script
+        type: string
+      - description: Name of ConfigMap containing proxy routes data
+        name: PROXY_ROUTES_CONFIGMAP
+        type: string
+      - description: Application port (default 8000)
+        name: APP_PORT
+        type: string
+      - description: Playwright image to use for testing
+        name: PLAYWRIGHT_IMAGE
+        type: string
+      - description: Frontend proxy image
+        name: PROXY_IMAGE
+        type: string
+      - description: Name of the secret containing e2e credentials
+        name: CREDENTIALS_SECRET
+        type: string
       workspaces:
       - name: shared-workspace
         mountPath: /var/workdir
@@ -972,68 +938,68 @@ spec:
         securityContext:
           privileged: false
       steps:
-        - name: setup-proxy-routes
-          image: quay.io/quay/busybox
-          script: |
-            #!/bin/sh
-            set -e
+      - name: setup-proxy-routes
+        image: quay.io/quay/busybox
+        script: |
+          #!/bin/sh
+          set -e
 
-            # Check if ConfigMap data is available
-            if [ ! -f /configmap-data/routes ]; then
-              echo "ERROR: ConfigMap routes file not found at /configmap-data/routes"
-              echo "Please ensure the ConfigMap is properly configured with a 'routes' key"
-              exit 1
-            fi
+          # Check if ConfigMap data is available
+          if [ ! -f /configmap-data/routes ]; then
+            echo "ERROR: ConfigMap routes file not found at /configmap-data/routes"
+            echo "Please ensure the ConfigMap is properly configured with a 'routes' key"
+            exit 1
+          fi
 
-            if [ ! -s /configmap-data/routes ]; then
-              echo "ERROR: ConfigMap routes file is empty"
-              exit 1
-            fi
+          if [ ! -s /configmap-data/routes ]; then
+            echo "ERROR: ConfigMap routes file is empty"
+            exit 1
+          fi
 
-            echo "Using routes from ConfigMap..."
-            cp /configmap-data/routes /config/routes
-            chmod 644 /config/routes
-            echo "Routes content:"
-            cat /config/routes
-          volumeMounts:
-            - name: proxy-config
-              mountPath: /config
-            - name: proxy-routes-configmap
-              mountPath: /configmap-data
-        - image: $(params.PLAYWRIGHT_IMAGE)
-          env:
-            - name: NO_PROXY
-              value: "stage.foo.redhat.com"
-            - name: E2E_USER
-              valueFrom:
-                secretKeyRef:
-                  name: $(params.CREDENTIALS_SECRET)
-                  key: e2e-user
-            - name: E2E_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: $(params.CREDENTIALS_SECRET)
-                  key: e2e-password
-            - name: HCC_ENV_URL
-              valueFrom:
-                secretKeyRef:
-                  name: $(params.CREDENTIALS_SECRET)
-                  key: e2e-hcc-env-url
-          name: e2e-tests
-          workingDir: /var/workdir
-          computeResources:
-            requests:
-              cpu: "2000m"
-              memory: "4Gi"
-            limits:
-              cpu: "4000m"
-              memory: "8Gi"
-          securityContext:
-            runAsUser: 0
-          script: |
-            #!/bin/bash
-            # Execute the e2e tests script with secrets available as env vars
-            $(params.e2e-tests-script)
+          echo "Using routes from ConfigMap..."
+          cp /configmap-data/routes /config/routes
+          chmod 644 /config/routes
+          echo "Routes content:"
+          cat /config/routes
+        volumeMounts:
+        - name: proxy-config
+          mountPath: /config
+        - name: proxy-routes-configmap
+          mountPath: /configmap-data
+      - image: $(params.PLAYWRIGHT_IMAGE)
+        env:
+        - name: NO_PROXY
+          value: "stage.foo.redhat.com"
+        - name: E2E_USER
+          valueFrom:
+            secretKeyRef:
+              name: $(params.CREDENTIALS_SECRET)
+              key: e2e-user
+        - name: E2E_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: $(params.CREDENTIALS_SECRET)
+              key: e2e-password
+        - name: HCC_ENV_URL
+          valueFrom:
+            secretKeyRef:
+              name: $(params.CREDENTIALS_SECRET)
+              key: e2e-hcc-env-url
+        name: e2e-tests
+        workingDir: /var/workdir
+        computeResources:
+          requests:
+            cpu: "2000m"
+            memory: "4Gi"
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+        securityContext:
+          runAsUser: 0
+        script: |
+          #!/bin/bash
+          # Execute the e2e tests script with secrets available as env vars
+          $(params.e2e-tests-script)
   workspaces:
   - name: workspace
   - name: git-auth
