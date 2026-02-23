@@ -8,6 +8,12 @@
         "description": "Disable gomod manager on foreman/satellite branches. This is needed to override default mintmaker config.",
         "matchManagers": ["gomod"],
         "enabled": false
+      },
+      {
+        "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+        "description": "Enable security alerts for go dependencies on foreman/satellite branches.",
+        "matchManagers": ["gomod"],
+        "osvVulnerabilityAlerts": true
       }
     ]
   },
@@ -62,6 +68,12 @@
       "matchManagers": ["tekton"],
       "enabled": true,
       "schedule": ["every weekend"]
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Enable security alerts for application dependencies on foreman/satellite branches.",
+      "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
+      "osvVulnerabilityAlerts": true
     }
   ]
 }
