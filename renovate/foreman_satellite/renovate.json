@@ -29,6 +29,7 @@
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Updates of Dockerfile and RPMs for foreman/satellite branches with immediate schedule",
       "matchManagers": ["dockerfile"],
+      "groupName": "image-and-rpm-updates",
       "enabled": true,
       "postUpgradeTasks": {
         "commands": ["rpm-lockfile-prototype rpms.in.yaml"],
