@@ -72,6 +72,13 @@
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Enable git submodule updates of frontend build tools for foreman/satellite branches",
+      "matchManagers": ["git-submodules"],
+      "matchPackageNames": ["build-tools"],
+      "enabled": true
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Enable security alerts for application dependencies on foreman/satellite branches.",
       "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
       "osvVulnerabilityAlerts": true
