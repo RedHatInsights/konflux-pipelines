@@ -35,7 +35,8 @@
         "commands": ["rpm-lockfile-prototype rpms.in.yaml"],
         "fileFilters": ["**/rpms.lock.yaml"]
       },
-      "schedule": ["at any time"]
+      "schedule": ["at any time"],
+      "automerge": true
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
@@ -54,7 +55,8 @@
           "$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"
       ],
       "enabled": true,
-      "schedule": ["at any time"]
+      "schedule": ["at any time"],
+      "automerge": true
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
@@ -68,7 +70,8 @@
       "description": "Konflux pipeline updates for foreman/satellite branches with weekly schedule",
       "matchManagers": ["tekton"],
       "enabled": true,
-      "schedule": ["every weekend"]
+      "schedule": ["every weekend"],
+      "automerge": true
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
