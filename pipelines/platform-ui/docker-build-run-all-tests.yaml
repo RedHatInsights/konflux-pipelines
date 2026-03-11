@@ -703,7 +703,7 @@ spec:
         args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir
-      - image: registry.redhat.io/ubi9/nodejs-22-minimal:latest 
+      - image: registry.access.redhat.com/ubi9/nodejs-22:latest
         workingDir: /var/workdir
         name: unit-tests
         securityContext:
