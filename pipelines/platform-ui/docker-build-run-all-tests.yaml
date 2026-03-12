@@ -843,66 +843,9 @@ spec:
           # Validate HCC_ENV_URL is set
           if [ -z "${HCC_ENV_URL}" ]; then
             echo "ERROR: HCC_ENV_URL environment variable is not set!"
-            echo "This is required for proxying chrome and other upstream routes."
+            echo "This is required for proxying and other upstream routes."
             exit 1
           fi
-
-          # Check if Caddyfile exists and contains {$LOCAL_ROUTES} placeholder
-          echo "Checking for {$LOCAL_ROUTES} placeholder in Caddyfile..."
-          if [ ! -f /etc/caddy/Caddyfile ]; then
-            echo "ERROR: /etc/caddy/Caddyfile not found!"
-            exit 1
-          fi
-
-          if ! grep -q '{$LOCAL_ROUTES}' /etc/caddy/Caddyfile; then
-            echo "ERROR: {$LOCAL_ROUTES} placeholder not found in Caddyfile!"
-            echo "The Caddyfile must contain {$LOCAL_ROUTES} where routes should be injected."
-            exit 1
-          fi
-
-          # Same as the default one in the fe-dev-proxy container but debug and admin are turned on
-          cat << CADDY_DEF > /etc/caddy/Caddyfile
-          {
-            order rewrite before reverse_proxy
-            order rh_identity_transform before respond
-            cache
-            admin :2019
-            # debug
-          }
-
-          stage.foo.redhat.com:$PROXY_PORT {
-            tls internal
-
-            log default {
-              output stdout
-              format transform "{common_log}"
-            }
-
-            @html_fallback {
-              header Accept *text/html*
-              not path_regexp .*\/(silent-check-sso\.html)$
-            }
-
-            # --- BEGIN CUSTOM APP ROUTES
-            $LOCAL_ROUTES
-            # --- END CUSTOM APP ROUTES
-
-            handle {
-              cache
-              reverse_proxy $HCC_ENV_URL {
-                header_up Host {http.reverse_proxy.upstream.hostport}
-                header_up Accept-Encoding "gzip;q=0,deflate,sdch"
-                header_up -Origin
-              }
-            }
-          } # End stage.foo.redhat.com
-          CADDY_DEF
-
-          echo "Formatting Caddyfile"
-          caddy fmt --overwrite /etc/caddy/Caddyfile
-
-          echo "Updated /etc/caddy/Caddyfile follows:"
-          cat /etc/caddy/Caddyfile
 
           # Wait for run-application to be ready on port 8000
           echo "Waiting for run-application to be ready on port 8000..."
@@ -922,7 +865,7 @@ spec:
             exit 1
           fi
 
-          echo "Starting frontend-development-proxy..."
+          echo "Starting frontend-development-proxy using container's template Caddyfile..."
           caddy run --config /etc/caddy/Caddyfile
         env:
         - name: NO_PROXY
