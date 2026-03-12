@@ -876,11 +876,6 @@ spec:
           value: "1337"
         - name: HCC_ENV_URL
           value: $(params.HCC_ENV_URL)
-        - name: STAGE_ACTUAL_HOSTNAME
-          valueFrom:
-            secretKeyRef:
-              name: $(params.CREDENTIALS_SECRET)
-              key: e2e-stage-actual-hostname
         securityContext:
           privileged: false
         volumeMounts:
@@ -897,11 +892,6 @@ spec:
             secretKeyRef:
               name: $(params.CREDENTIALS_SECRET)
               key: e2e-hcc-env-url
-        - name: STAGE_ACTUAL_HOSTNAME
-          valueFrom:
-            secretKeyRef:
-              name: $(params.CREDENTIALS_SECRET)
-              key: e2e-stage-actual-hostname
         securityContext:
           privileged: false
       steps:
@@ -936,7 +926,7 @@ spec:
       - image: $(params.PLAYWRIGHT_IMAGE)
         env:
         - name: NO_PROXY
-          value: "stage.foo.redhat.com"
+          value: "stage.foo.redhat.com,prod.foo.redhat.com"
         - name: E2E_USER
           valueFrom:
             secretKeyRef:
