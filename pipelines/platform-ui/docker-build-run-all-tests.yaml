@@ -155,6 +155,14 @@ spec:
     description: Name of the secret containing e2e test credentials
     type: string
     default: ""
+  - name: e2e-hcc-env
+    description: HCC environment (e.g., stage, prod)
+    type: string
+    default: "stage"
+  - name: e2e-hcc-env-url
+    description: HCC environment URL
+    type: string
+    default: "https://console.stage.redhat.com"
   results:
   - description: ""
     name: IMAGE_URL
@@ -722,24 +730,30 @@ spec:
   - name: run-e2e-tests
     description: Runs e2e tests against the built application
     params:
-    - name: SOURCE_ARTIFACT
-      value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
-    - name: APPLICATION_IMAGE
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: e2e-tests-script
-      value: $(params.e2e-tests-script)
-    - name: run-app-script
-      value: $(params.run-app-script)
-    - name: PROXY_ROUTES_CONFIGMAP
-      value: $(params.frontend-proxy-routes-configmap)
-    - name: APP_PORT
-      value: $(params.e2e-app-port)
-    - name: PLAYWRIGHT_IMAGE
-      value: $(params.e2e-playwright-image)
-    - name: PROXY_IMAGE
-      value: $(params.e2e-proxy-image)
-    - name: CREDENTIALS_SECRET
-      value: $(params.e2e-credentials-secret)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
+      - name: APPLICATION_IMAGE
+        value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: e2e-tests-script
+        value: $(params.e2e-tests-script)
+      - name: run-app-script
+        value: $(params.run-app-script)
+      - name: PROXY_ROUTES_CONFIGMAP
+        value: $(params.frontend-proxy-routes-configmap)
+      - name: APP_PORT
+        value: $(params.e2e-app-port)
+      - name: PLAYWRIGHT_IMAGE
+        value: $(params.e2e-playwright-image)
+      - name: CHROME_DEV_IMAGE
+        value: $(params.e2e-chrome-dev-image)
+      - name: PROXY_IMAGE
+        value: $(params.e2e-proxy-image)
+      - name: CREDENTIALS_SECRET
+        value: $(params.e2e-credentials-secret)
+      - name: HCC_ENV
+        value: $(params.e2e-hcc-env)
+      - name: HCC_ENV_URL
+        value: $(params.e2e-hcc-env-url)
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
@@ -752,33 +766,42 @@ spec:
       workspace: workspace
     taskSpec:
       params:
-      - description: The Trusted Artifact URI pointing to the test source code
-        name: SOURCE_ARTIFACT
-        type: string
-      - description: The built application image to test
-        name: APPLICATION_IMAGE
-        type: string
-      - description: The script to execute the e2e tests
-        name: e2e-tests-script
-        type: string
-      - description: The script to run the application
-        name: run-app-script
-        type: string
-      - description: Name of ConfigMap containing proxy routes data
-        name: PROXY_ROUTES_CONFIGMAP
-        type: string
-      - description: Application port (default 8000)
-        name: APP_PORT
-        type: string
-      - description: Playwright image to use for testing
-        name: PLAYWRIGHT_IMAGE
-        type: string
-      - description: Frontend proxy image
-        name: PROXY_IMAGE
-        type: string
-      - description: Name of the secret containing e2e credentials
-        name: CREDENTIALS_SECRET
-        type: string
+        - description: The Trusted Artifact URI pointing to the test source code
+          name: SOURCE_ARTIFACT
+          type: string
+        - description: The built application image to test
+          name: APPLICATION_IMAGE
+          type: string
+        - description: The script to execute the e2e tests
+          name: e2e-tests-script
+          type: string
+        - description: The script to run the application
+          name: run-app-script
+          type: string
+        - description: Name of ConfigMap containing proxy routes data
+          name: PROXY_ROUTES_CONFIGMAP
+          type: string
+        - description: Application port (default 8000)
+          name: APP_PORT
+          type: string
+        - description: Playwright image to use for testing
+          name: PLAYWRIGHT_IMAGE
+          type: string
+        - description: Chrome dev image
+          name: CHROME_DEV_IMAGE
+          type: string
+        - description: Frontend proxy image
+          name: PROXY_IMAGE
+          type: string
+        - description: Name of the secret containing e2e credentials
+          name: CREDENTIALS_SECRET
+          type: string
+        - description: HCC environment (e.g., stage, prod)
+          name: HCC_ENV
+          type: string
+        - description: HCC environment URL
+          name: HCC_ENV_URL
+          type: string
       workspaces:
       - name: shared-workspace
         mountPath: /var/workdir
@@ -910,14 +933,11 @@ spec:
         - name: NO_PROXY
           value: "127.0.0.1,localhost"
         - name: HCC_ENV
-          value: "stage"
+          value: $(params.HCC_ENV)
         - name: PROXY_PORT
           value: "1337"
         - name: HCC_ENV_URL
-          valueFrom:
-            secretKeyRef:
-              name: $(params.CREDENTIALS_SECRET)
-              key: e2e-hcc-env-url
+          value: $(params.HCC_ENV_URL)
         - name: STAGE_ACTUAL_HOSTNAME
           valueFrom:
             secretKeyRef:
