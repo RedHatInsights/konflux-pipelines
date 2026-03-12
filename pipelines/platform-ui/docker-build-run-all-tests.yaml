@@ -827,8 +827,8 @@ spec:
           echo "Routes content:"
           cat /config/routes
 
-          # Export LOCAL_ROUTES environment variable from the file, replacing {env.HCC_ENV_URL} with actual value
-          export LOCAL_ROUTES="$(cat /config/routes | sed "s|{env.HCC_ENV_URL}|${HCC_ENV_URL}|g")"
+          # Export LOCAL_ROUTES environment variable from the file
+          export LOCAL_ROUTES="$(cat /config/routes)"
           echo "LOCAL_ROUTES environment variable set"
 
           # Validate HCC_ENV_URL is set
