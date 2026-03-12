@@ -131,10 +131,6 @@ spec:
     name: frontend-proxy-routes-configmap
     type: string
     default: ""
-  - description: Application port (default 8000)
-    name: e2e-app-port
-    type: string
-    default: "8000"
   - description: Playwright image to use for testing
     name: e2e-playwright-image
     type: string
@@ -740,8 +736,6 @@ spec:
         value: $(params.run-app-script)
       - name: PROXY_ROUTES_CONFIGMAP
         value: $(params.frontend-proxy-routes-configmap)
-      - name: APP_PORT
-        value: $(params.e2e-app-port)
       - name: PLAYWRIGHT_IMAGE
         value: $(params.e2e-playwright-image)
       - name: PROXY_IMAGE
@@ -778,9 +772,6 @@ spec:
           type: string
         - description: Name of ConfigMap containing proxy routes data
           name: PROXY_ROUTES_CONFIGMAP
-          type: string
-        - description: Application port (default 8000)
-          name: APP_PORT
           type: string
         - description: Playwright image to use for testing
           name: PLAYWRIGHT_IMAGE
