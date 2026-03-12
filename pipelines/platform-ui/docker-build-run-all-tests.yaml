@@ -131,10 +131,6 @@ spec:
     name: frontend-proxy-routes-configmap
     type: string
     default: ""
-  - description: Application port (default 8000)
-    name: e2e-app-port
-    type: string
-    default: "8000"
   - description: Playwright image to use for testing
     name: e2e-playwright-image
     type: string
@@ -155,6 +151,14 @@ spec:
     description: Name of the secret containing e2e test credentials
     type: string
     default: ""
+  - name: e2e-hcc-env
+    description: HCC environment (e.g., stage, prod)
+    type: string
+    default: "stage"
+  - name: e2e-hcc-env-url
+    description: HCC environment URL
+    type: string
+    default: "https://console.stage.redhat.com"
   results:
   - description: ""
     name: IMAGE_URL
@@ -722,24 +726,26 @@ spec:
   - name: run-e2e-tests
     description: Runs e2e tests against the built application
     params:
-    - name: SOURCE_ARTIFACT
-      value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
-    - name: APPLICATION_IMAGE
-      value: $(tasks.build-image-index.results.IMAGE_URL)
-    - name: e2e-tests-script
-      value: $(params.e2e-tests-script)
-    - name: run-app-script
-      value: $(params.run-app-script)
-    - name: PROXY_ROUTES_CONFIGMAP
-      value: $(params.frontend-proxy-routes-configmap)
-    - name: APP_PORT
-      value: $(params.e2e-app-port)
-    - name: PLAYWRIGHT_IMAGE
-      value: $(params.e2e-playwright-image)
-    - name: PROXY_IMAGE
-      value: $(params.e2e-proxy-image)
-    - name: CREDENTIALS_SECRET
-      value: $(params.e2e-credentials-secret)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
+      - name: APPLICATION_IMAGE
+        value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: e2e-tests-script
+        value: $(params.e2e-tests-script)
+      - name: run-app-script
+        value: $(params.run-app-script)
+      - name: PROXY_ROUTES_CONFIGMAP
+        value: $(params.frontend-proxy-routes-configmap)
+      - name: PLAYWRIGHT_IMAGE
+        value: $(params.e2e-playwright-image)
+      - name: PROXY_IMAGE
+        value: $(params.e2e-proxy-image)
+      - name: CREDENTIALS_SECRET
+        value: $(params.e2e-credentials-secret)
+      - name: HCC_ENV
+        value: $(params.e2e-hcc-env)
+      - name: HCC_ENV_URL
+        value: $(params.e2e-hcc-env-url)
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
@@ -752,33 +758,36 @@ spec:
       workspace: workspace
     taskSpec:
       params:
-      - description: The Trusted Artifact URI pointing to the test source code
-        name: SOURCE_ARTIFACT
-        type: string
-      - description: The built application image to test
-        name: APPLICATION_IMAGE
-        type: string
-      - description: The script to execute the e2e tests
-        name: e2e-tests-script
-        type: string
-      - description: The script to run the application
-        name: run-app-script
-        type: string
-      - description: Name of ConfigMap containing proxy routes data
-        name: PROXY_ROUTES_CONFIGMAP
-        type: string
-      - description: Application port (default 8000)
-        name: APP_PORT
-        type: string
-      - description: Playwright image to use for testing
-        name: PLAYWRIGHT_IMAGE
-        type: string
-      - description: Frontend proxy image
-        name: PROXY_IMAGE
-        type: string
-      - description: Name of the secret containing e2e credentials
-        name: CREDENTIALS_SECRET
-        type: string
+        - description: The Trusted Artifact URI pointing to the test source code
+          name: SOURCE_ARTIFACT
+          type: string
+        - description: The built application image to test
+          name: APPLICATION_IMAGE
+          type: string
+        - description: The script to execute the e2e tests
+          name: e2e-tests-script
+          type: string
+        - description: The script to run the application
+          name: run-app-script
+          type: string
+        - description: Name of ConfigMap containing proxy routes data
+          name: PROXY_ROUTES_CONFIGMAP
+          type: string
+        - description: Playwright image to use for testing
+          name: PLAYWRIGHT_IMAGE
+          type: string
+        - description: Frontend proxy image
+          name: PROXY_IMAGE
+          type: string
+        - description: Name of the secret containing e2e credentials
+          name: CREDENTIALS_SECRET
+          type: string
+        - description: HCC environment (e.g., stage, prod)
+          name: HCC_ENV
+          type: string
+        - description: HCC environment URL
+          name: HCC_ENV_URL
+          type: string
       workspaces:
       - name: shared-workspace
         mountPath: /var/workdir
@@ -818,73 +827,16 @@ spec:
           echo "Routes content:"
           cat /config/routes
 
-          # Export LOCAL_ROUTES environment variable from the file, replacing {env.HCC_ENV_URL} with actual value
-          export LOCAL_ROUTES="$(cat /config/routes | sed "s|{env.HCC_ENV_URL}|${HCC_ENV_URL}|g")"
+          # Export LOCAL_ROUTES environment variable from the file
+          export LOCAL_ROUTES="$(cat /config/routes)"
           echo "LOCAL_ROUTES environment variable set"
 
           # Validate HCC_ENV_URL is set
           if [ -z "${HCC_ENV_URL}" ]; then
             echo "ERROR: HCC_ENV_URL environment variable is not set!"
-            echo "This is required for proxying chrome and other upstream routes."
+            echo "This is required for proxying and other upstream routes."
             exit 1
           fi
-
-          # Check if Caddyfile exists and contains {$LOCAL_ROUTES} placeholder
-          echo "Checking for {$LOCAL_ROUTES} placeholder in Caddyfile..."
-          if [ ! -f /etc/caddy/Caddyfile ]; then
-            echo "ERROR: /etc/caddy/Caddyfile not found!"
-            exit 1
-          fi
-
-          if ! grep -q '{$LOCAL_ROUTES}' /etc/caddy/Caddyfile; then
-            echo "ERROR: {$LOCAL_ROUTES} placeholder not found in Caddyfile!"
-            echo "The Caddyfile must contain {$LOCAL_ROUTES} where routes should be injected."
-            exit 1
-          fi
-
-          # Same as the default one in the fe-dev-proxy container but debug and admin are turned on
-          cat << CADDY_DEF > /etc/caddy/Caddyfile
-          {
-            order rewrite before reverse_proxy
-            order rh_identity_transform before respond
-            cache
-            admin :2019
-            # debug
-          }
-
-          stage.foo.redhat.com:$PROXY_PORT {
-            tls internal
-
-            log default {
-              output stdout
-              format transform "{common_log}"
-            }
-
-            @html_fallback {
-              header Accept *text/html*
-              not path_regexp .*\/(silent-check-sso\.html)$
-            }
-
-            # --- BEGIN CUSTOM APP ROUTES
-            $LOCAL_ROUTES
-            # --- END CUSTOM APP ROUTES
-
-            handle {
-              cache
-              reverse_proxy $HCC_ENV_URL {
-                header_up Host {http.reverse_proxy.upstream.hostport}
-                header_up Accept-Encoding "gzip;q=0,deflate,sdch"
-                header_up -Origin
-              }
-            }
-          } # End stage.foo.redhat.com
-          CADDY_DEF
-
-          echo "Formatting Caddyfile"
-          caddy fmt --overwrite /etc/caddy/Caddyfile
-
-          echo "Updated /etc/caddy/Caddyfile follows:"
-          cat /etc/caddy/Caddyfile
 
           # Wait for run-application to be ready on port 8000
           echo "Waiting for run-application to be ready on port 8000..."
@@ -904,25 +856,17 @@ spec:
             exit 1
           fi
 
-          echo "Starting frontend-development-proxy..."
+          echo "Starting frontend-development-proxy using container's template Caddyfile..."
           caddy run --config /etc/caddy/Caddyfile
         env:
         - name: NO_PROXY
           value: "127.0.0.1,localhost"
         - name: HCC_ENV
-          value: "stage"
+          value: $(params.HCC_ENV)
         - name: PROXY_PORT
           value: "1337"
         - name: HCC_ENV_URL
-          valueFrom:
-            secretKeyRef:
-              name: $(params.CREDENTIALS_SECRET)
-              key: e2e-hcc-env-url
-        - name: STAGE_ACTUAL_HOSTNAME
-          valueFrom:
-            secretKeyRef:
-              name: $(params.CREDENTIALS_SECRET)
-              key: e2e-stage-actual-hostname
+          value: $(params.HCC_ENV_URL)
         securityContext:
           privileged: false
         volumeMounts:
@@ -939,11 +883,6 @@ spec:
             secretKeyRef:
               name: $(params.CREDENTIALS_SECRET)
               key: e2e-hcc-env-url
-        - name: STAGE_ACTUAL_HOSTNAME
-          valueFrom:
-            secretKeyRef:
-              name: $(params.CREDENTIALS_SECRET)
-              key: e2e-stage-actual-hostname
         securityContext:
           privileged: false
       steps:
@@ -978,7 +917,7 @@ spec:
       - image: $(params.PLAYWRIGHT_IMAGE)
         env:
         - name: NO_PROXY
-          value: "stage.foo.redhat.com"
+          value: "stage.foo.redhat.com,prod.foo.redhat.com"
         - name: E2E_USER
           valueFrom:
             secretKeyRef:
