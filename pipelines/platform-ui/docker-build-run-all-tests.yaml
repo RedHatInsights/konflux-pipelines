@@ -744,8 +744,6 @@ spec:
         value: $(params.e2e-app-port)
       - name: PLAYWRIGHT_IMAGE
         value: $(params.e2e-playwright-image)
-      - name: CHROME_DEV_IMAGE
-        value: $(params.e2e-chrome-dev-image)
       - name: PROXY_IMAGE
         value: $(params.e2e-proxy-image)
       - name: CREDENTIALS_SECRET
@@ -786,9 +784,6 @@ spec:
           type: string
         - description: Playwright image to use for testing
           name: PLAYWRIGHT_IMAGE
-          type: string
-        - description: Chrome dev image
-          name: CHROME_DEV_IMAGE
           type: string
         - description: Frontend proxy image
           name: PROXY_IMAGE
