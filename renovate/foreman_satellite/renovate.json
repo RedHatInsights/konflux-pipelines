@@ -78,7 +78,9 @@
       "description": "Enable git submodule updates of frontend build tools for foreman/satellite branches",
       "matchManagers": ["git-submodules"],
       "matchDepNames": ["build-tools"],
-      "enabled": true
+      "schedule": ["at any time"],
+      "enabled": true,
+      "automerge": true
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
