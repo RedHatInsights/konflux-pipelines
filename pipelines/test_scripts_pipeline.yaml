@@ -176,7 +176,7 @@ spec:
         - input: $(tasks.return-git-rev-url.results.git-url)
           operator: in
           values:
-            - "true"
+            - "github.com"
       workspaces:
         - name: basic-auth
           workspace: git-auth
