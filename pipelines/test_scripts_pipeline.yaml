@@ -121,9 +121,9 @@ spec:
             image: quay.io/enterprise-contract/ec-cli:snapshot
             onError: continue # progress even if the step fails so we can see the debug logs
             script: |
-              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.url' > "${GIT_URL}"
-              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.revision' > "${GIT_REVISION}"
-              echo ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .containerImage' > "${CONTAINER_IMAGE}"
+              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.url' > "${GIT_URL}"
+              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.revision' > "${GIT_REVISION}"
+              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .containerImage' > "${CONTAINER_IMAGE}"
             env:
               - name: HOME
                 value: $(params.HOMEDIR)
