@@ -156,7 +156,7 @@ spec:
           # value: $(params.revision)
           value: $(tasks.return-git-rev-url.results.git-revision)
         - name: ociStorage
-          value: $(params.output-image).git
+          value: $(params.output-image)-$(tasks.return-git-rev-url.results.git-revision).git
         - name: ociArtifactExpiresAfter
           value: $(params.image-expires-after)
       runAfter:
