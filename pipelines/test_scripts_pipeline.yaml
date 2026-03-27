@@ -30,9 +30,9 @@ spec:
       default: 'false'
       description: Enable cache proxy configuration
       type: string
-    - description: Source Repository URL
-      name: git-url
-      type: string
+    # - description: Source Repository URL
+    #   name: git-url
+    #   type: string
     - default: ""
       description: Revision of the Source Repository
       name: revision
@@ -150,11 +150,11 @@ spec:
     - name: clone-repository-oci-ta
       params:
         - name: url
-          value: $(params.git-url)
-          # value: $(tasks.return-git-rev-url.results.git-url)
+          # value: $(params.git-url)
+          value: $(tasks.return-git-rev-url.results.git-url)
         - name: revision
-          value: $(params.revision)
-          # value: $(tasks.return-git-rev-url.results.git-revision)
+          # value: $(params.revision)
+          value: $(tasks.return-git-rev-url.results.git-revision)
         - name: ociStorage
           value: $(params.output-image).git
         - name: ociArtifactExpiresAfter
