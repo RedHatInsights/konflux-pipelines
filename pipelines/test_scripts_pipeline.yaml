@@ -168,15 +168,15 @@ spec:
           - name: kind
             value: task
         resolver: bundles
-      when:
+      # when:
         # - input: $(tasks.init.results.build)
         #   operator: in
         #   values:
         #     - "true"
-        - input: $(tasks.return-git-rev-url.results.git-url)
-          operator: in
-          values:
-            - "github.com"
+        # - input: $(tasks.return-git-rev-url.results.status)
+        #   operator: in
+        #   values:
+        #     - "passed"
       workspaces:
         - name: basic-auth
           workspace: git-auth
