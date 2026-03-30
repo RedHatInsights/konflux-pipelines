@@ -8,7 +8,9 @@ metadata:
 spec:
   workspaces:
     - name: git-auth
-      optional: true
+      # optional: true
+      secret:
+        secretName: '{{ git_auth_secret }}'
     - name: netrc
       optional: true
 
