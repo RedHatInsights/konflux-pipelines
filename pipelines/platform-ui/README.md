@@ -1,5 +1,7 @@
 # Platform UI E2E Testing Pipeline
 
+> **Note**: This is version 1 of the pipeline. If you need to add custom secrets (Chromatic, Currents, etc.) without modifying the pipeline, see [README-v2.md](./README-v2.md) for the enhanced version with flexible secret management using `envFrom`.
+
 ## Overview
 
 This pipeline (`docker-build-run-all-tests.yaml`) extends the standard Konflux docker-build pipeline with end-to-end testing capabilities for Platform UI applications.
