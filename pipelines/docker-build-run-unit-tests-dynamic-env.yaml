@@ -707,7 +707,7 @@ spec:
         args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir
-      - image: registry.access.redhat.com/ubi9/go-toolset:1.25.7-1774351791
+      - image: registry.access.redhat.com/ubi9/go-toolset:1.25.8-1775151107
         workingDir: /var/workdir
         name: unit-tests
         securityContext:
