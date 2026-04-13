@@ -706,7 +706,7 @@ spec:
         script: |
           #!/bin/bash
           if [ -n "$(params.WORKSPACE_SETUP_SCRIPT)" ]; then
-            $(params.WORKSPACE_SETUP_SCRIPT)
+            bash -c "$(params.WORKSPACE_SETUP_SCRIPT)"
           else
             echo "No workspace setup script provided, skipping..."
           fi
