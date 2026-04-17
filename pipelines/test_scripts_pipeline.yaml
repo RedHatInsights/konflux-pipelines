@@ -8,9 +8,7 @@ metadata:
 spec:
   workspaces:
     - name: git-auth
-      # optional: true
-      secret:
-        secretName: '{{ git_auth_secret }}'
+      optional: true
     - name: netrc
       optional: true
 
@@ -149,7 +147,34 @@ spec:
       # runAfter:
       #  - init
 
-    - name: clone-repository-oci-ta
+    ### - name: clone-repository-oci-ta
+    ###   params:
+    ###     - name: url
+    ###       # value: $(params.git-url)
+    ###       value: $(tasks.return-git-rev-url.results.git-url)
+    ###     - name: revision
+    ###       # value: $(params.revision)
+    ###       value: $(tasks.return-git-rev-url.results.git-revision)
+    ###     - name: ociStorage
+    ###       value: $(params.output-image)-$(tasks.return-git-rev-url.results.git-revision).git
+    ###     - name: ociArtifactExpiresAfter
+    ###       value: $(params.image-expires-after)
+    ###   runAfter:
+    ###     - return-git-rev-url
+    ###   taskRef:
+    ###     params:
+    ###       - name: name
+    ###         value: git-clone-oci-ta
+    ###       - name: bundle
+    ###         value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:306b69e6db435ad4a7cf258b6219d9b998eb37da44f5e9ac882ac86a08109154
+    ###       - name: kind
+    ###         value: task
+    ###     resolver: bundles
+    ###   workspaces:
+    ###     - name: basic-auth
+    ###       workspace: git-auth
+
+    - name: clone-repository
       params:
         - name: url
           # value: $(params.git-url)
@@ -166,9 +191,9 @@ spec:
       taskRef:
         params:
           - name: name
-            value: git-clone-oci-ta
+            value: git-clone
           - name: bundle
-            value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:306b69e6db435ad4a7cf258b6219d9b998eb37da44f5e9ac882ac86a08109154
+            value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.1-780298b8039a2ba917ce30517c3f64aec26c389e
           - name: kind
             value: task
         resolver: bundles
@@ -178,7 +203,7 @@ spec:
 
     - name: deploy-ephemeral-namespace
       runAfter:
-        - clone-repository-oci-ta
+        - clone-repository
       taskRef:
         resolver: git
         params:
@@ -209,7 +234,7 @@ spec:
         - deploy-ephemeral-namespace
       params:
         - name: SOURCE_ARTIFACT
-          value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
+          value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
         - name: SCRIPT_PATH
           value: $(params.ephemeral-namespace-run-script)
         - name: CONTAINER_IMAGE
