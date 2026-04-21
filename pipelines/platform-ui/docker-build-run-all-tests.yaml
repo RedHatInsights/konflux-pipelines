@@ -134,7 +134,7 @@ spec:
   - description: Playwright image to use for testing
     name: e2e-playwright-image
     type: string
-    default: "quay.io/btweed/playwright_e2e:latest"
+    default: "mcr.microsoft.com/playwright:v1.59.0-noble"
   - description: Frontend proxy image
     name: e2e-proxy-image
     type: string
