@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: test_script_pipeline_run
+spec:
+  pipelineRef:
+    resolver: git
+    params:
+      - name: url
+        value: https://github.com/patchkez/konflux-pipelines.git
+      - name: revision
+        value: test_script_pipeline
+      - name: pathInRepo
+        value: pipelines/test_scripts_pipeline.yaml
+  workspaces:
+    - name: workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
