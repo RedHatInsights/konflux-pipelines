@@ -279,6 +279,8 @@ spec:
                     key: kubeconfig
               - name: SCRIPT_PATH
                 value: $(params.SCRIPT_PATH)
+              - name: SNAPSHOT
+                value: $(params.SNAPSHOT)
               # - name: IMAGE_URL
               #   value: $(tasks.build-image-index.results.IMAGE_URL)
               # - name: IMAGE_DIGEST
@@ -296,9 +298,11 @@ spec:
 
               # exploring workspace
               ls -ltr /workspace
-              cat /workspace/snapshot.json
+              # cat /workspace/snapshot.json
 
               echo "Running script ${SCRIPT_PATH}"
+              cd /workspace/source/source
+              ls -ltrR
               chmod +x ./${SCRIPT_PATH}
               ./${SCRIPT_PATH}
       when:
