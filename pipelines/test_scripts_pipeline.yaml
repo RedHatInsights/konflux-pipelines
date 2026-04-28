@@ -4,7 +4,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: test_script_pipeline
+  name: test-script-pipeline
 spec:
   workspaces:
     - name: git-auth

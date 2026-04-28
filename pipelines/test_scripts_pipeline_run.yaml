@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  name: test_script_pipeline_run
+  name: test-script-pipeline-run
 spec:
   pipelineRef:
     resolver: git
