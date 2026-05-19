@@ -874,6 +874,8 @@ spec:
         args:
         - $(params.run-app-script)
         env:
+        - name: GODEBUG
+          value: ""
         - name: HCC_ENV_URL
           valueFrom:
             secretKeyRef:
