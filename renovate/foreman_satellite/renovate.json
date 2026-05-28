@@ -13,7 +13,7 @@
         "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
         "description": "Enable security alerts for go dependencies on foreman/satellite branches.",
         "matchManagers": ["gomod"],
-        "osvVulnerabilityAlerts": true
+        "matchJsonata": ["$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"]
       }
     ]
   },
@@ -89,7 +89,7 @@
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Enable security alerts for application dependencies on foreman/satellite branches.",
       "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
-      "osvVulnerabilityAlerts": true
+      "matchJsonata": ["$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"]
     }
   ]
 }
