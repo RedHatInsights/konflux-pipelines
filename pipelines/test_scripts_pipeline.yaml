@@ -32,9 +32,6 @@ spec:
       default: 'false'
       description: Enable cache proxy configuration
       type: string
-    # - description: Source Repository URL
-    #   name: git-url
-    #   type: string
     - default: ""
       description: Revision of the Source Repository
       name: revision
@@ -79,21 +76,16 @@ spec:
     - name: return-git-rev-url
       params:
         - name: SNAPSHOT
-          # value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
           value: $(params.SNAPSHOT)
         - name: SINGLE_COMPONENT
           value: $(params.component-name)
-        # - name: SNAPSHOT_PATH
-        #  value: $(params.HOMEDIR)/snapshot.json
         - name: HOME
           value: $(params.HOMEDIR)
       taskSpec:
         params:
           - name: SINGLE_COMPONENT
-            # value: $(params.component-name)
             type: string
           - name: SNAPSHOT
-            # value: $(params.HOMEDIR)/snapshot.json
             type: string
           - name: HOME
             type: string
@@ -110,12 +102,9 @@ spec:
               - name: HOME
                 value: $(params.HOMEDIR)
               - name: SNAPSHOT
-                # value: /var/workdir/$(context.taskRun.uid)/$(params.SNAPSHOT_FILENAME)
                 value: $(params.SNAPSHOT)
               - name: SINGLE_COMPONENT
                 value: $(params.component-name)
-              # - name: SNAPSHOT_PATH
-              #   value: $(params.HOMEDIR)/snapshot.json
               - name: GIT_URL
                 value: $(results.git-url.path)
               - name: GIT_REVISION
@@ -130,10 +119,8 @@ spec:
     - name: clone-repository
       params:
         - name: url
-          # value: $(params.git-url)
           value: $(tasks.return-git-rev-url.results.git-url)
         - name: revision
-          # value: $(params.revision)
           value: $(tasks.return-git-rev-url.results.git-revision)
         - name: ociStorage
           value: $(params.output-image)-$(tasks.return-git-rev-url.results.git-revision).git
@@ -192,10 +179,6 @@ spec:
           value: $(params.ephemeral-namespace-run-script)
         - name: CONTAINER_IMAGE
           value: $(tasks.return-git-rev-url.results.container-image)
-          # - name: IMAGE_URL
-          #   value: $(tasks.build-image-index.results.IMAGE_URL)
-          # - name: IMAGE_DIGEST
-          #   value: $(tasks.build-image-index.results.IMAGE_DIGEST)
         - name: SNAPSHOT
           value: $(params.SNAPSHOT)
         - name: OC_CLI_VERSION
@@ -233,10 +216,6 @@ spec:
                 value: $(params.CONTAINER_IMAGE)
               - name: SNAPSHOT
                 value: $(params.SNAPSHOT)
-              # - name: IMAGE_URL
-              #   value: $(tasks.build-image-index.results.IMAGE_URL)
-              # - name: IMAGE_DIGEST
-              #   value: $(tasks.build-image-index.results.IMAGE_DIGEST)
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -246,15 +225,10 @@ spec:
               export KUBECONFIG=/tmp/cfg
 
               # SNAPSHOT var
-              echo "$SNAPSHOT"
-
-              # exploring workspace
-              ls -ltr /workspace
-              # cat /workspace/snapshot.json
+              echo "Snapshot: $SNAPSHOT"
 
               echo "Running script ${SCRIPT_PATH}"
               cd /workspace/source/source
-              ls -ltrR
               chmod +x ./${SCRIPT_PATH}
               ./${SCRIPT_PATH}
       when:
