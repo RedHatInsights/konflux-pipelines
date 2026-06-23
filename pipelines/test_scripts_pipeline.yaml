@@ -221,8 +221,9 @@ spec:
               set -euo pipefail
 
               # Expose KUBECONFIG for test namespace
-              echo "$KUBECONFIG_VALUE" > /tmp/cfg
-              export KUBECONFIG=/tmp/cfg
+              KUBECONFIG=$(mktemp)
+              echo "$KUBECONFIG_VALUE" > "$KUBECONFIG"
+              export KUBECONFIG
 
               # SNAPSHOT var
               echo "Snapshot: $SNAPSHOT"
