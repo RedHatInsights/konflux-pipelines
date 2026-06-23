@@ -67,6 +67,57 @@ spec:
 **Drawback:**
 - Requires occasional PRs to update to newer versions (but automated by MintMaker)
 
+### Testing in ephemeral Konflux namespace
+
+Motivastion for this pipeline was deprecation of Jenkins jobs (PR check) and avoiding use of docker-compose. If the test/deploy script is written wisely, you can use the script to run tests locally in Minikube K8S and run the same script in ephemeral Konflux namespace.
+
+Pipeline has 4 tasks
+- parse values from SNAPSHOT variable
+- clone repository
+- deploy ephemeral namespace
+- run custom script
+
+Pipeline reuses image which was built into redhat-user-workloads space.
+
+### Define ITS
+- define konflux IntegrationTestScenario and point it to PipelineRun `pipelines/test_scripts_pipeline_run.yaml`, define `component-name`, `SCRIPT_PATH` and `output-image` parameters e.g.
+```yaml
+---
+apiVersion: appstudio.redhat.com/v1beta2
+kind: IntegrationTestScenario
+metadata:
+  labels:
+    test.appstudio.openshift.io/optional: "true" # Change to "true" if you don't need the test to be mandatory
+    appstudio.openshift.io/component: floorist
+  name: insights-floorist-tekton-tests
+  namespace: insights-management-tenant
+spec:
+  application: insights-floorist
+  contexts:
+    - description: Component Testing
+      name: component_floorist
+  resolverRef:
+    resourceKind: pipelinerun
+    params:
+      - name: url
+        value: https://github.com/patchkez/konflux-pipelines.git
+      - name: revision
+        value: test_script_pipeline
+      - name: pathInRepo
+        value: pipelines/test_scripts_pipeline_run.yaml
+    resolver: git
+  params:
+    - name: SCRIPT_PATH
+      value: 'scripts/deploy_test_env.sh'
+    - name: component-name
+      value: 'floorist'
+    - name: output-image
+      value: quay.io/redhat-user-workloads/insights-management-tenant/insights-floorist/floorist:on-pr-
+```
+
+### Define test/deploy script and Openshift/K8s resource
+Check how this was done for (Floorist app)[https://github.com/RedHatInsights/floorist/pull/300]. Openshift template can be used for local templating and applied as normal K8S resources to local Minikube instance.`
+
 ## Pipeline Parameters
 
 ### build-container-additional-secret
