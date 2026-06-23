@@ -230,7 +230,6 @@ spec:
 
               echo "Running script ${SCRIPT_PATH}"
               cd /workspace/source/source
-              chmod +x ./${SCRIPT_PATH}
               ./${SCRIPT_PATH}
       when:
         - input: $(params.skip-checks)
