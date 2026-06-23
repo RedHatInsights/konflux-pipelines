@@ -20,7 +20,7 @@ spec:
       name: script-to-execute
       type: string
     - default: ""
-      description: Script to run in ephemeral namespace. If empty, ephemeral namespace tasks are skipped.
+      description: Path to script in the repo where this pipeline is used. If empty, ephemeral namespace tasks are skipped.
       name: SCRIPT_PATH
       type: string
       # https://catalog.redhat.com/software/containers/openshift4/ose-cli/5cd9ba3f5a13467289f4d51d/history?architecture=amd64
