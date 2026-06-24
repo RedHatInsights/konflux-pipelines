@@ -95,9 +95,9 @@ spec:
             image: quay.io/enterprise-contract/ec-cli:snapshot
             onError: continue # progress even if the step fails so we can see the debug logs
             script: |
-              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.url' | tr -d '\n' > "${GIT_URL}"
-              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.revision' | tr -d '\n' > "${GIT_REVISION}"
-              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .containerImage' | tr -d '\n' > "${CONTAINER_IMAGE}"
+              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.url' | tr -d '\n' > $(results.git-url.path)
+              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .source.git.revision' | tr -d '\n' > $(results.git-revision.path)
+              echo -n ${SNAPSHOT} | jq -r '.components[] | select(.name == env.SINGLE_COMPONENT) | .containerImage' | tr -d '\n' > $(results.container-image.path)
             env:
               - name: HOME
                 value: $(params.HOMEDIR)
@@ -105,12 +105,6 @@ spec:
                 value: $(params.SNAPSHOT)
               - name: SINGLE_COMPONENT
                 value: $(params.component-name)
-              - name: GIT_URL
-                value: $(results.git-url.path)
-              - name: GIT_REVISION
-                value: $(results.git-revision.path)
-              - name: CONTAINER_IMAGE
-                value: $(results.container-image.path)
         results:
           - name: git-url
           - name: git-revision

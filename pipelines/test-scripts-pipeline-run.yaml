@@ -11,7 +11,7 @@ spec:
       - name: revision
         value: test_script_pipeline
       - name: pathInRepo
-        value: pipelines/test_scripts_pipeline.yaml
+        value: pipelines/test-scripts-pipeline.yaml
   workspaces:
     - name: workspace
       volumeClaimTemplate:
