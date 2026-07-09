@@ -1,5 +1,7 @@
 # Platform UI E2E Testing Pipeline v2
 
+> **⚠️ CRITICAL**: Before implementing E2E tests with this pipeline, read [E2E-SIDECAR-BEST-PRACTICES.md](./E2E-SIDECAR-BEST-PRACTICES.md) to avoid common sidecar termination issues (Tekton issue #1347). **All `run-app-script` implementations MUST include the nop image guard documented there.**
+
 ## Overview
 
 This is **version 2** of the Platform UI E2E testing pipeline with enhanced secret management capabilities. It extends the standard Konflux docker-build pipeline with end-to-end testing capabilities for Platform UI applications.
