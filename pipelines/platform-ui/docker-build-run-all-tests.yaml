@@ -822,6 +822,14 @@ spec:
         args:
         - |
           #!/bin/sh
+
+          # Guard against Tekton nop image replacement
+          # See: https://github.com/tektoncd/pipeline/issues/1347
+          if ! command -v caddy >/dev/null 2>&1; then
+            echo "Caddy not found - running in nop image, exiting gracefully"
+            exit 0
+          fi
+
           echo "Waiting for /config/routes to be available..."
           timeout=60
           max_wait=120

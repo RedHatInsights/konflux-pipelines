@@ -4,6 +4,8 @@
 
 **Affects:** All repos using `docker-build-run-all-tests.yaml` or `docker-build-run-all-tests-v2.yaml`
 
+**Note:** As of commit 7b1b3a5, the `frontend-dev-proxy` sidecar in both pipeline versions includes the nop image guard. However, consuming repos must still add the guard to their custom `run-app-script` parameter.
+
 ### Problem
 
 When E2E tests complete, Tekton terminates sidecar containers by:
