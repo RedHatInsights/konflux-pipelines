@@ -13,7 +13,8 @@
         "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
         "description": "Enable security alerts for go dependencies on foreman/satellite branches.",
         "matchManagers": ["gomod"],
-        "osvVulnerabilityAlerts": true
+        "matchJsonata": ["$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"],
+        "enabled": true
       }
     ]
   },
@@ -36,7 +37,8 @@
         "fileFilters": ["**/rpms.lock.yaml"]
       },
       "schedule": ["at any time"],
-      "automerge": true
+      "automerge": true,
+      "autoApprove": true
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
@@ -56,7 +58,8 @@
       ],
       "enabled": true,
       "schedule": ["at any time"],
-      "automerge": true
+      "automerge": true,
+      "autoApprove": true
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
@@ -71,7 +74,8 @@
       "matchManagers": ["tekton"],
       "enabled": true,
       "schedule": ["every weekend"],
-      "automerge": true
+      "automerge": true,
+      "autoApprove": true
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
@@ -86,7 +90,8 @@
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Enable security alerts for application dependencies on foreman/satellite branches.",
       "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
-      "osvVulnerabilityAlerts": true
+      "matchJsonata": ["$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"],
+      "enabled": true
     }
   ]
 }
