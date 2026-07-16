@@ -44,7 +44,8 @@
       },
       "schedule": ["at any time"],
       "automerge": true,
-      "autoApprove": true
+      "autoApprove": true,
+      "recreateWhen": "always"
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
