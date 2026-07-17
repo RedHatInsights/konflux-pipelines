@@ -33,12 +33,19 @@
       "groupName": "image-and-rpm-updates",
       "enabled": true,
       "postUpgradeTasks": {
-        "commands": ["rpm-lockfile-prototype rpms.in.yaml"],
-        "fileFilters": ["**/rpms.lock.yaml"]
+        "commands": [
+          "refresh-rpm-lockfiles -f \"$RENOVATE_POST_UPGRADE_COMMAND_DATA_FILE\""
+        ],
+        "fileFilters": [
+          "**/rpms.lock.yaml"
+        ],
+        "executionMode": "branch",
+        "dataFileTemplate": "[{{#each upgrades}}{\"packageFile\": \"{{{packageFile}}}\"}{{#unless @last}},{{\/unless}}{{\/each}}]"
       },
       "schedule": ["at any time"],
       "automerge": true,
-      "autoApprove": true
+      "autoApprove": true,
+      "recreateWhen": "always"
     },
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
