@@ -3,6 +3,8 @@
   "extends": ["github>konflux-ci/mintmaker//config/renovate/renovate.json"],
   "tekton": {
     "includePaths": ["pipelines/**"],
-    "schedule": ["at any time"]
+    "schedule": ["at any time"],
+    "automerge": true,
+    "platformAutomerge": true
   }
 }
