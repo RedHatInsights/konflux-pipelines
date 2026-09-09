@@ -22,6 +22,12 @@
   "packageRules": [
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Increase prConcurrentLimit for foreman/satellite branches to ensure continuous updates",
+      "prConcurrentLimit": 20,
+      "enabled": true
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Disable all managers except specific managers on foreman/satellite branches",
       "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
       "enabled": false
