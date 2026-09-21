@@ -701,8 +701,14 @@ spec:
       - image: $(params.UNIT_TEST_IMAGE)
         workingDir: /var/workdir
         name: workspace-setup
+        env:
+        - name: HOME
+          value: /var/workdir
         securityContext:
-          runAsUser: 0
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
         script: |
           #!/bin/bash
           if [ -n "$(params.WORKSPACE_SETUP_SCRIPT)" ]; then
@@ -710,17 +716,6 @@ spec:
           else
             echo "No workspace setup script provided, skipping..."
           fi
-      - name: prepare-unit-test-workspace
-        image: quay.io/quay/busybox
-        securityContext:
-          runAsUser: 0
-          allowPrivilegeEscalation: false
-        script: |
-          #!/bin/sh
-          set -eu
-          # Artifact extraction and setup can leave root-owned files.
-          chown -R 1000:1000 /var/workdir
-          chmod -R u+rwX /var/workdir
       - image: $(params.UNIT_TEST_IMAGE)
         workingDir: /var/workdir
         name: unit-tests
@@ -934,6 +929,11 @@ spec:
       steps:
         - name: setup-proxy-routes
           image: quay.io/quay/busybox
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
           script: |
             #!/bin/sh
             set -e
@@ -960,18 +960,6 @@ spec:
               mountPath: /config
             - name: proxy-routes-configmap
               mountPath: /configmap-data
-        - name: prepare-e2e-workspace
-          image: quay.io/quay/busybox
-          securityContext:
-            runAsUser: 0
-            allowPrivilegeEscalation: false
-          script: |
-            #!/bin/sh
-            set -eu
-            # Setup can leave root-owned auth state and artifacts.
-            # Give the non-root e2e user write access, including existing files.
-            chown -R 1000:1000 /var/workdir
-            chmod -R u+rwX /var/workdir
         - image: $(params.PLAYWRIGHT_IMAGE)
           envFrom:
             - secretRef:

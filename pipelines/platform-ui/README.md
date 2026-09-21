@@ -250,3 +250,19 @@ If `proxy-routes-script` fails:
 - Enhanced validation and error reporting
 - Metrics collection from proxy layer
 - Dynamic host-based routing
+
+## Non-root setup and tests
+
+In the shared all-tests pipeline, workspace setup, unit tests, and Playwright tests
+run as UID/GID `1000:1000`, require non-root execution, and disable privilege
+escalation. Pipeline owners must provide a workspace and extracted source files
+that this identity can read and write, including dependency directories, auth
+state, caches, and test artifacts. The BusyBox proxy-route setup step also runs
+as `1000:1000`; its `/config` volume must be writable by that identity.
+The pipeline does not repair ownership or
+permissions with root-run steps. Setup scripts and tests must work without root;
+system dependencies should be included in the selected images.
+
+Workspace setup and unit tests use `/var/workdir` as `HOME` for writable user
+caches. Custom images must support UID/GID `1000:1000`. In the pinned Playwright
+image, this identity is `ubuntu`; `pwuser` is `1001:1001`.
