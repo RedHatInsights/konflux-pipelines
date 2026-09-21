@@ -98,7 +98,7 @@ spec:
   - description: Playwright image to use for testing
     name: e2e-playwright-image
     type: string
-    default: "mcr.microsoft.com/playwright:v1.59.0-noble"
+    default: "mcr.microsoft.com/playwright:v1.59.0-noble@sha256:11707c5282fec52f0705aad3a23f46b3409b3de4aed378b3dbe118d8b8c87b67"
   - description: Frontend proxy image
     name: e2e-proxy-image
     type: string
@@ -920,6 +920,18 @@ spec:
           mountPath: /config
         - name: proxy-routes-configmap
           mountPath: /configmap-data
+      - name: prepare-e2e-workspace
+        image: quay.io/quay/busybox
+        securityContext:
+          runAsUser: 0
+          allowPrivilegeEscalation: false
+        script: |
+          #!/bin/sh
+          set -eu
+          # Setup and unit tests can leave root-owned auth state and artifacts.
+          # Give the non-root e2e user write access, including existing files.
+          chown -R 1000:1000 /var/workdir
+          chmod -R u+rwX /var/workdir
       - image: $(params.PLAYWRIGHT_IMAGE)
         env:
         - name: NO_PROXY
@@ -949,7 +961,10 @@ spec:
             cpu: "4000m"
             memory: "8Gi"
         securityContext:
-          runAsUser: 0
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
         script: |
           #!/bin/bash
           # Execute the e2e tests script with secrets available as env vars
