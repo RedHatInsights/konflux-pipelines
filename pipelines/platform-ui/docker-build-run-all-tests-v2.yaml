@@ -695,6 +695,16 @@ spec:
       steps:
       - name: use-trusted-artifact
         image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+        env:
+        - name: HOME
+          value: /var/workdir
+        # Extract source as the same identity that installs dependencies and runs tests.
+        # The PipelineRun must provide a workspace writable by this identity.
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
         args:
         - use
         - $(params.SOURCE_ARTIFACT)=/var/workdir

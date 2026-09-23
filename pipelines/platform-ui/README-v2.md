@@ -344,7 +344,7 @@ npx playwright test
 
 ## Non-root setup and tests
 
-In the shared all-tests pipeline, workspace setup, unit tests, and Playwright tests
+In the v2 pipeline, source extraction, workspace setup, unit tests, and Playwright tests
 run as UID/GID `1000:1000`, require non-root execution, and disable privilege
 escalation. Pipeline owners must provide a workspace and extracted source files
 that this identity can read and write, including dependency directories, auth
@@ -354,6 +354,42 @@ The pipeline does not repair ownership or
 permissions with root-run steps. Setup scripts and tests must work without root;
 system dependencies should be included in the selected images.
 
-Workspace setup and unit tests use `/var/workdir` as `HOME` for writable user
-caches. Custom images must support UID/GID `1000:1000`. In the pinned Playwright
+Source extraction, workspace setup, and unit tests use `/var/workdir` as `HOME`
+for credentials and user caches. Custom images must support UID/GID `1000:1000`. In the pinned Playwright
 image, this identity is `ubuntu`; `pwuser` is `1001:1001`.
+
+### Consumer PipelineRun configuration
+
+The shared Pipeline sets container identities, but pod-level volume permissions
+must be configured in the consuming PipelineRun or through cluster defaults.
+For clusters that permit group `1000` and storage that supports `fsGroup`, merge
+these entries into the PipelineRun's existing `spec.taskRunSpecs`:
+
+```yaml
+spec:
+  taskRunSpecs:
+    - pipelineTaskName: run-unit-tests
+      podTemplate:
+        securityContext:
+          fsGroup: 1000
+    - pipelineTaskName: run-e2e-tests
+      podTemplate:
+        securityContext:
+          fsGroup: 1000
+```
+
+Preserve any existing settings for these tasks. The unit-test task needs write
+access to `/var/workdir` before source extraction starts. The E2E task needs
+write access to the shared workspace and its `/config` volume. Setting `HOME`
+or `runAsUser` alone does not grant access to either volume.
+
+If cluster policy disallows this group or identity, coordinate an allowed
+configuration with the pipeline owners. Verify the effective pod security
+context and volume permissions when using storage that does not support
+`fsGroup`. See [Tekton pod templates](https://tekton.dev/docs/pipelines/podtemplates/).
+
+Validate with a fresh PipelineRun: source extraction should succeed, workspace
+setup should be able to install dependencies, and tests should be able to write
+caches and artifacts. A `tar: ./.git: Cannot mkdir: Permission denied` error in
+`use-trusted-artifact` means extraction still lacks access to its destination;
+application test-script changes will not fix that failure.
