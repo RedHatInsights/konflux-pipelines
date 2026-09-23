@@ -698,6 +698,11 @@ spec:
         env:
         - name: HOME
           value: /var/workdir
+        # Skip only the archive root entry: fsGroup grants write access, not
+        # ownership needed to restore the volume root's mode and timestamps.
+        # --no-recursion keeps the exclusion from also excluding its contents.
+        - name: TAR_OPTIONS
+          value: "--no-recursion --anchored --exclude=."
         # Extract source as the same identity that installs dependencies and runs tests.
         # The PipelineRun must provide a workspace writable by this identity.
         securityContext:

@@ -393,3 +393,12 @@ setup should be able to install dependencies, and tests should be able to write
 caches and artifacts. A `tar: ./.git: Cannot mkdir: Permission denied` error in
 `use-trusted-artifact` means extraction still lacks access to its destination;
 application test-script changes will not fix that failure.
+
+The extraction step sets `TAR_OPTIONS=--no-recursion --anchored --exclude=.`
+to exclude only the archive's root directory entry while extracting its contents,
+including hidden files and executable scripts. The mounted workspace can be
+group-writable without being owned by UID `1000`; restoring the archived root
+directory's timestamps or mode would then fail with `Cannot utime` or
+`Cannot change mode`. The exclusion preserves the volume root's existing
+permissions and avoids those metadata operations. Keep the `fsGroup`
+configuration: the step still needs write access to extract source files.
