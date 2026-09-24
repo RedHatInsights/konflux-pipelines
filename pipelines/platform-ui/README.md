@@ -1,6 +1,6 @@
 # Platform UI E2E Testing Pipeline
 
-> **Note**: This is version 1 of the pipeline. If you need to add custom secrets (Chromatic, Currents, etc.) without modifying the pipeline, see [README-v2.md](./README-v2.md) for the enhanced version with flexible secret management using `envFrom`.
+> **Deprecated**: All repositories consuming `docker-build-run-all-tests.yaml` must migrate to [v2](./README-v2.md#migration-guide), including both pull-request and push PipelineRuns. V1 retains its legacy execution behavior for migration compatibility. The non-root security changes are provided in v2; they are not backported to v1. New consumers must use v2.
 
 > **⚠️ CRITICAL**: Before implementing E2E tests with this pipeline, read [E2E-SIDECAR-BEST-PRACTICES.md](./E2E-SIDECAR-BEST-PRACTICES.md) to avoid common sidecar termination issues (Tekton issue #1347). **All `run-app-script` implementations MUST include the nop image guard documented there.**
 
@@ -250,19 +250,3 @@ If `proxy-routes-script` fails:
 - Enhanced validation and error reporting
 - Metrics collection from proxy layer
 - Dynamic host-based routing
-
-## Non-root setup and tests
-
-In the shared all-tests pipeline, workspace setup, unit tests, and Playwright tests
-run as UID/GID `1000:1000`, require non-root execution, and disable privilege
-escalation. Pipeline owners must provide a workspace and extracted source files
-that this identity can read and write, including dependency directories, auth
-state, caches, and test artifacts. The BusyBox proxy-route setup step also runs
-as `1000:1000`; its `/config` volume must be writable by that identity.
-The pipeline does not repair ownership or
-permissions with root-run steps. Setup scripts and tests must work without root;
-system dependencies should be included in the selected images.
-
-Workspace setup and unit tests use `/var/workdir` as `HOME` for writable user
-caches. Custom images must support UID/GID `1000:1000`. In the pinned Playwright
-image, this identity is `ubuntu`; `pwuser` is `1001:1001`.

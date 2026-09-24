@@ -1,369 +1,123 @@
 # Platform UI E2E Testing Pipeline v2
 
-> **⚠️ CRITICAL**: Before implementing E2E tests with this pipeline, read [E2E-SIDECAR-BEST-PRACTICES.md](./E2E-SIDECAR-BEST-PRACTICES.md) to avoid common sidecar termination issues (Tekton issue #1347). **All `run-app-script` implementations MUST include the nop image guard documented there.**
+V2 (`docker-build-run-all-tests-v2.yaml`, Pipeline name `docker-build-v2`)
+provides non-root source extraction and test execution, workspace diagnostics,
+and flexible E2E secret loading. It builds the application image and runs unit
+and Playwright E2E tests.
 
-## Overview
-
-This is **version 2** of the Platform UI E2E testing pipeline with enhanced secret management capabilities. It extends the standard Konflux docker-build pipeline with end-to-end testing capabilities for Platform UI applications.
-
-## What's New in v2
-
-### Flexible Secret Management
-
-The key difference in v2 is the use of `envFrom` for secret management, which allows consumers to add any credentials they need **without modifying the shared pipeline definition**.
-
-**v1 (Legacy)**: Hardcoded secret keys
-```yaml
-env:
-  - name: E2E_USER
-    valueFrom:
-      secretKeyRef:
-        name: $(params.CREDENTIALS_SECRET)
-        key: e2e-user
-  - name: E2E_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: $(params.CREDENTIALS_SECRET)
-        key: e2e-password
-```
-
-**v2 (Current)**: Flexible secret loading
-```yaml
-envFrom:
-  - secretRef:
-      name: $(params.CREDENTIALS_SECRET)
-      optional: false
-```
-
-All keys in the secret automatically become environment variables, enabling easy integration with third-party services like Chromatic, Currents, or any other testing platform.
+Before implementing `run-app-script`, read
+[E2E-SIDECAR-BEST-PRACTICES.md](./E2E-SIDECAR-BEST-PRACTICES.md).
+The script must include the documented nop image guard.
 
 ## Migration Guide
 
-### Should You Migrate?
+### Required migration from v1
 
-- **Stay on v1** if: Your current setup works and you don't need additional secrets
-- **Migrate to v2** if: You need to add custom secrets (Chromatic, Currents, etc.) or want more flexibility
+V1 (`docker-build-run-all-tests.yaml`) is deprecated. All consuming repositories
+must migrate to v2, including both pull-request and push PipelineRuns. New
+consumers must use v2. V1 retains its legacy execution behavior for migration
+compatibility; the non-root security changes are maintained in v2 only.
 
-### Migration Steps
+### Migration steps
 
-1. **Update your pipeline reference** (in `.tekton/*.yaml`):
+1. **Update both pipeline references.** Use the v2 file and a revision containing
+   the security and extraction fixes. For a Git resolver, the following
+   `spec.pipelineRef` uses a revision on the fork containing those fixes:
+
    ```yaml
-   # Before
-   pipelineRef:
-     name: docker-build
-     bundle: quay.io/.../pipelines/platform-ui/docker-build-run-all-tests
-
-   # After
-   pipelineRef:
-     name: docker-build-v2
-     bundle: quay.io/.../pipelines/platform-ui/docker-build-run-all-tests-v2
+   spec:
+     pipelineRef:
+       resolver: git
+       params:
+         - name: url
+           value: https://github.com/catastrophe-brandon/konflux-pipelines.git
+         - name: revision
+           value: 3f42408a0202be36ce41e4c11c4ca049bf97d415
+         - name: pathInRepo
+           value: pipelines/platform-ui/docker-build-run-all-tests-v2.yaml
    ```
 
-2. **Verify your existing secrets work**: v2 is backwards compatible with v1 secrets
-   - Existing keys like `e2e-user`, `e2e-password` automatically become `E2E_USER`, `E2E_PASSWORD` env vars
-
-3. **Add any new secrets** (optional):
-   ```yaml
-   # Your ExternalSecret
-   data:
-     # Existing
-     - secretKey: e2e-user
-       remoteRef:
-         key: standard/e2e/user
-
-     # New: Add custom secrets
-     - secretKey: chromatic-token
-       remoteRef:
-         key: my-app/chromatic/token
-   ```
-
-4. **Use new secrets in your test scripts**:
-   ```bash
-   #!/bin/bash
-   # In your e2e-tests-script parameter
-
-   if [ -n "$CHROMATIC_TOKEN" ]; then
-     npx playwright test --reporter=@chromatic/playwright
-   fi
-   ```
-
-## Secret Management
-
-The `e2e-credentials-secret` parameter accepts a Kubernetes Secret name. **All keys** in that secret are automatically exposed as environment variables to:
-- The E2E test container (Playwright)
-- The frontend-dev-proxy sidecar
-
-Secret keys are automatically converted to environment variable names (e.g., `e2e-user` → `E2E_USER`, `chromatic-token` → `CHROMATIC_TOKEN`).
-
-### Standard Secret Keys
-
-Common keys used across multiple consumers:
-- `e2e-user`: Test user credentials
-- `e2e-password`: Test user password
-- `e2e-hcc-env-url`: Environment URL for testing
-- `e2e-stage-actual-hostname`: Stage hostname
-
-### Adding Custom Secrets
-
-Consumers can add any additional keys to their ExternalSecret definition without pipeline changes.
-
-#### Example: Chromatic Integration
-
-```yaml
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: my-app-e2e-secrets
-spec:
-  # ... standard configuration ...
-  data:
-    # Standard keys
-    - secretKey: e2e-user
-      remoteRef:
-        key: standard/e2e/user
-    - secretKey: e2e-password
-      remoteRef:
-        key: standard/e2e/password
-
-    # Chromatic-specific keys
-    - secretKey: chromatic-token
-      remoteRef:
-        key: my-app/chromatic/token
-    - secretKey: chromatic-project-id
-      remoteRef:
-        key: my-app/chromatic/project-id
-```
-
-**Using in test script:**
-```bash
-#!/bin/bash
-# e2e-tests-script
-
-# Run tests
-npx playwright test
-
-# Chromatic integration (if token is in the secret)
-if [ -n "$CHROMATIC_TOKEN" ]; then
-  echo "Publishing visual snapshots to Chromatic..."
-  npx chromatic --project-token="$CHROMATIC_TOKEN"
-fi
-```
-
-#### Example: Currents Integration
-
-```yaml
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: my-app-e2e-secrets
-spec:
-  data:
-    # Standard keys
-    - secretKey: e2e-user
-      remoteRef:
-        key: standard/e2e/user
-
-    # Currents-specific keys
-    - secretKey: currents-record-key
-      remoteRef:
-        key: my-app/currents/record-key
-    - secretKey: currents-project-id
-      remoteRef:
-        key: my-app/currents/project-id
-    - secretKey: currents-ci-build-id
-      remoteRef:
-        key: my-app/currents/ci-build-id
-```
-
-**Using in test script:**
-```bash
-#!/bin/bash
-# e2e-tests-script
-
-# Currents integration (if keys are in the secret)
-if [ -n "$CURRENTS_RECORD_KEY" ]; then
-  echo "Recording test results to Currents..."
-  export CURRENTS_RECORD_KEY
-  export CURRENTS_PROJECT_ID
-  export CURRENTS_CI_BUILD_ID
-  npx playwright test --reporter=@currents/playwright
-fi
-```
-
-### Benefits
-
-- **No pipeline changes required**: Add new secrets by updating your ExternalSecret only
-- **Per-consumer flexibility**: Each consuming repository can define their own secret keys
-- **Backwards compatible**: Existing v1 secrets continue to work unchanged
-- **Secure**: Secrets never appear in pipeline definitions or logs
-- **Extensible**: Easy integration with any third-party service that needs credentials
-
-## Architecture
-
-### Test Environment Setup
-
-```
-┌─────────────────────────────────────────────────────┐
-│  E2E Test Pod                                       │
-│                                                     │
-│  ┌─────────────────┐  ┌──────────────────────┐    │
-│  │  Playwright     │  │  Frontend Proxy      │    │
-│  │  Tests          │─▶│  (Port 1337)         │    │
-│  └─────────────────┘  └──────────────────────┘    │
-│                        │                           │
-│                        ├─ /apps/chrome* → 9912    │
-│                        ├─ /apps/app* → 8000       │
-│                        └─ /other* → 9912          │
-│                                                     │
-│  ┌─────────────────┐  ┌──────────────────────┐    │
-│  │  Chrome Dev     │  │  Application         │    │
-│  │  Server         │  │  (Port 8000)         │    │
-│  │  (Port 9912)    │  │  + Caddyfile routes  │    │
-│  └─────────────────┘  └──────────────────────┘    │
-└─────────────────────────────────────────────────────┘
-```
-
-### Component Responsibilities
-
-1. **Application Sidecar** (Port 8000):
-   - Runs the built application
-   - Serves static files via Caddy
-   - Handles application-specific routes defined by `run-app-script`
-
-2. **Chrome Dev Server** (Port 9912):
-   - Provides Chrome UI shell
-   - Serves shared frontend infrastructure
-
-3. **Frontend Proxy** (Port 1337):
-   - Routes requests based on path
-   - Uses configuration from ConfigMap
-   - Distributes traffic between application and Chrome server
-
-4. **Playwright Tests**:
-   - Connects to `https://stage.foo.redhat.com:1337`
-   - Executes E2E test scenarios
-   - Has access to all secrets as environment variables
-
-## Parameters
-
-### Pipeline Parameters
-
-- **e2e-tests-script**: Script to execute E2E tests
-  - Waits for servers to be ready
-  - Runs Playwright tests
-  - Has access to all secrets as environment variables
-
-- **run-app-script**: Script to run the application
-  - Configures application-specific Caddyfile routes
-  - Starts Caddy server
-
-- **e2e-credentials-secret**: Name of the Kubernetes Secret containing test credentials
-  - **All keys in this secret are automatically exposed as environment variables**
-  - Enables flexible credential management without pipeline modifications
-
-- **frontend-proxy-routes-configmap**: Name of ConfigMap containing proxy routes data
-
-- **e2e-app-port**: Application port (default: 8000)
-
-- **e2e-playwright-image**: Playwright image to use for testing
-
-- **e2e-chrome-dev-image**: Chrome dev image
-
-- **e2e-proxy-image**: Frontend proxy image
-
-### Task Parameters
-
-The `run-e2e-tests` task receives:
-- `CREDENTIALS_SECRET`: Name of secret (all keys become environment variables)
-- `APP_PORT`: Application port (default: 8000)
-- `PLAYWRIGHT_IMAGE`: Image for running tests
-- `CHROME_DEV_IMAGE`: Chrome development server image
-- `PROXY_IMAGE`: Reverse proxy image
-
-## Security Considerations
-
-### Secret Key Naming
-
-Choose secret key names carefully:
-- Use lowercase with hyphens: `chromatic-token` (becomes `CHROMATIC_TOKEN`)
-- Avoid conflicts with system environment variables
-- Be descriptive: `currents-record-key` not just `key`
-
-### Validation in Test Scripts
-
-Even though secrets are automatically available, validate they exist before using them:
-
-```bash
-#!/bin/bash
-
-if [ -z "$CHROMATIC_TOKEN" ]; then
-  echo "Warning: CHROMATIC_TOKEN not found, skipping Chromatic upload"
-else
-  npx chromatic --project-token="$CHROMATIC_TOKEN"
-fi
-```
-
-## Troubleshooting
-
-### Environment Variables Not Available
-
-If your custom secrets aren't appearing as environment variables:
-
-1. **Check the secret exists**: `kubectl get secret <secret-name> -n <namespace>`
-2. **Verify secret keys**: `kubectl get secret <secret-name> -o yaml`
-3. **Check key naming**: Keys with underscores or uppercase letters may not convert as expected
-4. **Check pipeline parameter**: Ensure `e2e-credentials-secret` parameter matches your secret name
-
-### Testing Secret Availability
-
-Add debugging to your e2e-tests-script:
-
-```bash
-#!/bin/bash
-set -e
-
-echo "=== Available Environment Variables ==="
-env | grep -E '(E2E_|CHROMATIC_|CURRENTS_)' | sed 's/=.*/=***/'
-echo "======================================="
-
-# Run tests
-npx playwright test
-```
-
-## Related Documentation
-
-- **v1 Pipeline**: See [README.md](./README.md) for the original pipeline documentation
-- **Consumer Example**: `RedHatInsights/learning-resources` (uses v1)
-
-## Future Improvements
-
-- Support for additional protocol handlers (gRPC, WebSocket)
-- Enhanced validation and error reporting
-- Metrics collection from proxy layer
-- Dynamic host-based routing
+   After the changes are merged upstream, use an upstream revision that contains
+   them. Do not assume a commit from the fork exists in the upstream repository.
+   For Pipelines as Code annotation references, update the remote URL to the v2
+   file at the chosen repository/revision and set `spec.pipelineRef.name` to
+   `docker-build-v2`. For bundle consumers, publish/select a bundle containing
+   this v2 Pipeline and use the
+   [Tekton bundles resolver](https://tekton.dev/docs/pipelines/bundle-resolver/);
+   this guide does not establish a published v2 bundle location.
+   See the [Git resolver documentation](https://tekton.dev/docs/pipelines/git-resolver/).
+
+2. **Adapt workspace setup to non-root execution.** In v1, `workspace-setup` is a
+   separate task using a fixed Node image. In v2, setup is a step inside
+   `run-unit-tests`, uses `unit-test-image`, and runs as UID/GID `1000:1000`.
+   Move relevant task-level configuration from the old `workspace-setup` task
+   to `run-unit-tests`; remove overrides targeting the old task name. Include
+   required system packages in the image instead of installing them as root.
+   Check shell quoting: v2 runs `workspace-setup-script` through `bash -c`.
+
+3. **Configure workspace access and capacity.** Follow
+   [Consumer PipelineRun configuration](#consumer-pipelinerun-configuration)
+   for both triggers. The test processes must belong to the workspace's writable
+   group. Neither setting `HOME` nor setting `runAsUser` grants volume access.
+
+4. **Review credentials and environment URLs.** Set `e2e-credentials-secret` to
+   an existing Secret and use the exact key names described in
+   [Secret management](#secret-management). V2 sets `HCC_ENV_URL` from the
+   `e2e-hcc-env-url` parameter, not from the legacy `e2e-hcc-env-url` Secret key.
+   Set that parameter explicitly if the application previously relied on the
+   Secret value. New custom keys must match the environment variable names used
+   by the scripts; `envFrom` does not rename them.
+
+5. **Review routes and validate both triggers.** Supply a
+   `frontend-proxy-routes-configmap` with a nonempty `routes` key and a
+   `run-app-script` serving the application on port 8000. If migrating from an
+   older pipeline with a chrome-dev sidecar, follow the
+   [chrome sidecar migration](./MIGRATION.md). Run both PR and push pipelines:
+   `diagnose-workspace` must pass, dependencies must install, and unit and E2E
+   tests must complete successfully.
+
+### Validated consumer
+
+The maintainer reported a successful `astro-virtual-assistant-frontend` run with
+shared pipeline commit `6dd7133550df659d37720ace226b2282c88b5cb3`, a 5Gi workspace,
+and `fsGroup: 1005770000` on both test tasks. That group matched its workspace's
+ownership. This is a working migration example, not validation of every
+consumer or both trigger definitions. Select the workspace group and capacity
+for each environment rather than copying those values unchanged.
+
+The Git reference example uses `3f42408a0202be36ce41e4c11c4ca049bf97d415`, which
+rebases the same security and diagnostic changes onto updated Konflux task
+references. Astro's reported success was on the earlier revision; rerun consumer
+validation when adopting the updated references.
 
 ## Non-root setup and tests
 
-In the v2 pipeline, source extraction, workspace setup, unit tests, and Playwright tests
-run as UID/GID `1000:1000`, require non-root execution, and disable privilege
-escalation. Pipeline owners must provide a workspace and extracted source files
-that this identity can read and write, including dependency directories, auth
-state, caches, and test artifacts. The BusyBox proxy-route setup step also runs
-as `1000:1000`; its `/config` volume must be writable by that identity.
-The pipeline does not repair ownership or
-permissions with root-run steps. Setup scripts and tests must work without root;
-system dependencies should be included in the selected images.
+The diagnostic, extraction, workspace setup, unit-test, proxy-route setup, and
+Playwright steps run as UID/GID `1000:1000`, require non-root execution, and
+prevent privilege escalation. These settings apply to those steps; the
+application and proxy sidecars retain their own image/runtime identities.
 
-Source extraction, workspace setup, and unit tests use `/var/workdir` as `HOME`
-for credentials and user caches. Custom images must support UID/GID `1000:1000`. In the pinned Playwright
-image, this identity is `ubuntu`; `pwuser` is `1001:1001`.
+The workspace and extracted files must be readable and writable by the test
+identity, including dependencies, caches, and artifacts. The proxy-route setup
+step also needs write access to the `/config` volume. The pipeline does not
+repair permissions with root-run steps. Custom test images must support
+UID/GID `1000:1000`; in the pinned Playwright image, this is `ubuntu`, while
+`pwuser` is `1001:1001`.
+
+Diagnostics, extraction, setup, and unit tests use `/var/workdir` as `HOME`.
+The Playwright step does not override `HOME`. Setup and tests run from
+`/var/workdir`; scripts for a repository subdirectory must change directory
+explicitly. The build's `path-context` does not change the test working directory.
 
 ### Consumer PipelineRun configuration
 
-The shared Pipeline sets container identities, but pod-level volume permissions
-must be configured in the consuming PipelineRun or through cluster defaults.
-For clusters that permit group `1000` and storage that supports `fsGroup`, merge
-these entries into the PipelineRun's existing `spec.taskRunSpecs`:
+Pod-level volume permissions belong in the consuming PipelineRun or cluster
+configuration. Merge these settings with existing `spec.taskRunSpecs` and
+`spec.workspaces`; preserve other settings and workspace bindings.
+
+The example below uses **astro's environment-specific group and capacity**.
+Replace both group values with the permitted writable workspace group for your
+environment. Do not default to `1000` simply because the steps run as UID 1000.
 
 ```yaml
 spec:
@@ -371,41 +125,134 @@ spec:
     - pipelineTaskName: run-unit-tests
       podTemplate:
         securityContext:
-          fsGroup: 1000
+          fsGroup: 1005770000 # Replace for your environment.
     - pipelineTaskName: run-e2e-tests
       podTemplate:
         securityContext:
-          fsGroup: 1000
+          fsGroup: 1005770000 # Use the same workspace group.
+  workspaces:
+    - name: workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi # Size for source, dependencies, caches, and artifacts.
 ```
 
-Preserve any existing settings for these tasks. The unit-test task needs write
-access to `/var/workdir` before source extraction starts. The E2E task needs
-write access to the shared workspace and its `/config` volume. Setting `HOME`
-or `runAsUser` alone does not grant access to either volume.
+`fsGroup` adds group membership to the pod's processes and, where supported,
+configures volume group access. It must be permitted by cluster policy and
+supported by the storage configuration. Other tasks sharing the PVC must use
+compatible volume permissions. See
+[Tekton pod templates](https://tekton.dev/docs/pipelines/podtemplates/) and
+[Kubernetes security contexts](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/).
 
-If cluster policy disallows this group or identity, coordinate an allowed
-configuration with the pipeline owners. Verify the effective pod security
-context and volume permissions when using storage that does not support
-`fsGroup`. See [Tekton pod templates](https://tekton.dev/docs/pipelines/podtemplates/).
+A template-size change applies to newly created claims. If the PipelineRun
+binds an existing PVC, preserve that binding and arrange supported PVC expansion
+instead of replacing it with a claim template.
 
-Validate with a fresh PipelineRun: source extraction should succeed, workspace
-setup should be able to install dependencies, and tests should be able to write
-caches and artifacts. A `tar: ./.git: Cannot mkdir: Permission denied` error in
-`use-trusted-artifact` means extraction still lacks access to its destination;
-application test-script changes will not fix that failure.
+## Secret management
 
-Before extraction, `diagnose-workspace` logs the effective UID and groups,
-workspace ownership and permissions, and disk and inode availability. It also
-creates and removes a temporary file to check write access. If that check fails,
-the task stops with an explicit error before attempting extraction. Use this
-step's logs to diagnose workspace access without inspecting pods or printing
-credentials.
+`e2e-credentials-secret` is required in practice: the E2E test and frontend proxy
+containers use a non-optional `envFrom.secretRef`. Secret keys are imported under
+**their original names**, without uppercasing or replacing hyphens. For portable
+shell access, name new keys with uppercase letters, digits, and underscores.
+See [Kubernetes secret environment variables](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#configure-all-key-value-pairs-in-a-secret-as-container-environment-variables).
 
-The extraction step sets `TAR_OPTIONS=--no-recursion --anchored --exclude=.`
-to exclude only the archive's root directory entry while extracting its contents,
-including hidden files and executable scripts. The mounted workspace can be
-group-writable without being owned by UID `1000`; restoring the archived root
-directory's timestamps or mode would then fail with `Cannot utime` or
-`Cannot change mode`. The exclusion preserves the volume root's existing
-permissions and avoids those metadata operations. Keep the `fsGroup`
-configuration: the step still needs write access to extract source files.
+V2 explicitly maps these legacy keys in both containers:
+
+| Secret key | Environment variable |
+| --- | --- |
+| `e2e-user` | `E2E_USER` |
+| `e2e-password` | `E2E_PASSWORD` |
+| `e2e-stage-actual-hostname` | `STAGE_ACTUAL_HOSTNAME` |
+
+Those explicit mappings are optional, but scripts still need the credentials
+required by their tests. `HCC_ENV_URL` is explicitly set from the pipeline
+parameter `e2e-hcc-env-url` (default `https://console.stage.redhat.com`); a Secret
+key of either `HCC_ENV_URL` or `e2e-hcc-env-url` does not override it. The
+application sidecar also receives this parameter as `HCC_ENV_URL`.
+
+For example, an ExternalSecret can expose a custom token as follows (merge into
+its existing `spec.data`, retaining the resource's other required settings):
+
+```yaml
+spec:
+  data:
+    - secretKey: CHROMATIC_TOKEN
+      remoteRef:
+        key: my-app/chromatic/token
+    - secretKey: CURRENTS_RECORD_KEY
+      remoteRef:
+        key: my-app/currents/record-key
+```
+
+The resulting Secret's keys are available as `$CHROMATIC_TOKEN` and
+`$CURRENTS_RECORD_KEY` in the E2E test and proxy containers. They are not injected
+into unit tests or the application sidecar by this mechanism. Check required
+variables without printing their values:
+
+```bash
+if [ -z "${CHROMATIC_TOKEN:-}" ]; then
+  echo "CHROMATIC_TOKEN is missing"
+  exit 1
+fi
+```
+
+## Architecture and parameters
+
+`run-unit-tests` extracts source into the shared workspace and installs
+dependencies through `workspace-setup-script` before running `unit-tests-script`.
+`run-e2e-tests` waits for the unit tests and built image, then reuses that workspace.
+Its Playwright container runs alongside `frontend-dev-proxy` and
+`run-application`. There is no chrome-dev sidecar. The proxy uses the ConfigMap
+routes and `HCC_ENV_URL` to reach the local application and upstream services.
+
+| Parameter | Purpose |
+| --- | --- |
+| `workspace-setup-script` | Optional non-root dependency setup inside `run-unit-tests`. |
+| `unit-test-image` | Image for diagnostics, setup, and unit tests; default UBI9 Node.js 22. |
+| `unit-tests-script` | Required unit-test script. |
+| `e2e-tests-script` | Required E2E script, including readiness checks needed by the tests. |
+| `run-app-script` | Required application sidecar script, including the nop guard. |
+| `frontend-proxy-routes-configmap` | ConfigMap with a nonempty `routes` key. |
+| `e2e-credentials-secret` | Existing Secret for E2E and proxy environment variables. |
+| `e2e-hcc-env` | Proxy environment name; default `stage`. |
+| `e2e-hcc-env-url` | Upstream URL used as `HCC_ENV_URL`. |
+| `e2e-playwright-image` | Pinned Playwright test image; overrides must support the selected identity. |
+| `e2e-proxy-image` | Frontend proxy image. |
+
+Although `e2e-app-port` is declared, the current proxy readiness check uses port
+8000 directly. Keep the application on port 8000. `e2e-chrome-dev-image` is not
+a parameter of this pipeline. See the [pipeline YAML](./docker-build-run-all-tests-v2.yaml)
+for the complete parameter list and defaults.
+
+## Troubleshooting from logs
+
+`diagnose-workspace` runs before extraction. It reports effective UID/groups,
+workspace ownership/mode, disk capacity, and inode availability, then creates
+and removes a temporary file. Failure stops the task before extraction.
+
+- **Permission denied:** Compare the groups printed by `id` with the writable
+  group printed by `stat`. Astro's failing run had process group `1000` but
+  workspace group `1005770000` with mode `2775`. Matching `fsGroup` to the
+  workspace group resolved that failure. A credential-copy warning creating
+  `/var/workdir/.docker` can have the same filesystem cause.
+- **Cannot utime / cannot change mode on `.`:** The extraction step uses
+  `TAR_OPTIONS=--no-recursion --anchored --exclude=.` to skip only the archive
+  root entry while extracting its contents. This preserves the mounted
+  directory's metadata. Confirm the selected revision contains that fix.
+- **ENOSPC during npm installation:** Check disk and inode consumption; source,
+  dependencies, and the default npm cache share the workspace. Diagnostics show
+  usage before installation, so capture `df -h`, `df -i`, and directory sizes in
+  the setup script's failure handler if installation fills the volume.
+- **Missing custom secret variable:** Check the Secret key's exact name and the
+  `e2e-credentials-secret` parameter. `envFrom` does not rename keys. Avoid
+  printing Secret values or dumping the environment into logs.
+
+## Related documentation
+
+- [Deprecated v1 documentation](./README.md)
+- [Chrome sidecar migration](./MIGRATION.md)
+- [Sidecar termination requirements](./E2E-SIDECAR-BEST-PRACTICES.md)

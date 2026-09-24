@@ -1,5 +1,10 @@
 # Migration Guide: Chrome Sidecar Removal
 
+> **V1 is deprecated**: All consumers of `docker-build-run-all-tests.yaml` must
+> also complete the [required v2 migration](./README-v2.md#migration-guide) for
+> both pull-request and push PipelineRuns. The guide below covers the separate
+> chrome sidecar migration.
+
 ## Overview
 
 The `insights-chrome-dev` sidecar has been removed from the platform-ui e2e testing pipeline. This document helps identify affected repositories and provides migration steps.
