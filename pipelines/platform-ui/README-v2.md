@@ -23,7 +23,7 @@ security changes live in v2.
 
 ### Pipeline reference
 
-This fork revision contains the security and extraction fixes:
+After merge, use the upstream repository. Pin a merged commit for reproducible runs:
 
 ```yaml
 spec:
@@ -31,14 +31,13 @@ spec:
     resolver: git
     params:
       - name: url
-        value: https://github.com/catastrophe-brandon/konflux-pipelines.git
+        value: https://github.com/RedHatInsights/konflux-pipelines.git
       - name: revision
-        value: d9defcaf6f7546563bcaad2f850488662d86503e
+        value: main # Or a pinned upstream commit containing the v2 fixes.
       - name: pathInRepo
         value: pipelines/platform-ui/docker-build-run-all-tests-v2.yaml
 ```
 
-After upstream merge, choose an upstream revision containing the fixes.
 For annotation references, update the file URL and use Pipeline name
 `docker-build-v2`. Bundle users must select a bundle containing v2 through the
 [bundles resolver](https://tekton.dev/docs/pipelines/bundle-resolver/).
@@ -70,8 +69,8 @@ spec:
               storage: 5Gi # Size for your app.
 ```
 
-Astro passed with this group and capacity on commit `6dd7133`. The reference
-above includes later dependency updates, so validate your own run.
+Astro passed with this group and capacity on commit `6dd7133` during development.
+Validate your own run when adopting the merged pipeline.
 Keep existing workspace bindings; resizing a claim template does not resize an
 existing PVC.
 
