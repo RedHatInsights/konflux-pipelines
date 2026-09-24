@@ -2,9 +2,8 @@
 
 This repository provides remote pipeline definitions that can help ease the maintenance of Konflux build pipelines across multiple repositories.
 
-The Platform UI all-tests v1 pipeline (`pipelines/platform-ui/docker-build-run-all-tests.yaml`)
-is deprecated. All consumers must [migrate to v2](pipelines/platform-ui/README-v2.md#migration-guide)
-for the non-root security changes; new consumers must use v2.
+Platform UI all-tests v1 is deprecated. All consumers must
+[migrate to v2](pipelines/platform-ui/README-v2.md#migration-guide).
 
 When a component is onboarded to Konflux, two build pipelines are automatically created:
 - `${component.name}-pull-request.yaml`

@@ -1,6 +1,6 @@
 # Platform UI E2E Testing Pipeline
 
-> **Deprecated**: All repositories consuming `docker-build-run-all-tests.yaml` must migrate to [v2](./README-v2.md#migration-guide), including both pull-request and push PipelineRuns. V1 retains its legacy execution behavior for migration compatibility. The non-root security changes are provided in v2; they are not backported to v1. New consumers must use v2.
+> **Deprecated:** Move both PR and push pipelines to [v2](./README-v2.md#migration-guide). V1 keeps legacy behavior; security changes live in v2.
 
 > **⚠️ CRITICAL**: Before implementing E2E tests with this pipeline, read [E2E-SIDECAR-BEST-PRACTICES.md](./E2E-SIDECAR-BEST-PRACTICES.md) to avoid common sidecar termination issues (Tekton issue #1347). **All `run-app-script` implementations MUST include the nop image guard documented there.**
 

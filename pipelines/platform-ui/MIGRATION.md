@@ -1,9 +1,6 @@
 # Migration Guide: Chrome Sidecar Removal
 
-> **V1 is deprecated**: All consumers of `docker-build-run-all-tests.yaml` must
-> also complete the [required v2 migration](./README-v2.md#migration-guide) for
-> both pull-request and push PipelineRuns. The guide below covers the separate
-> chrome sidecar migration.
+> V1 is deprecated. Also complete the [v2 migration](./README-v2.md#migration-guide) for both PR and push pipelines.
 
 ## Overview
 
