@@ -1,8 +1,7 @@
 # Platform UI E2E Testing Pipeline v2
 
 V2 (`docker-build-run-all-tests-v2.yaml`, Pipeline name `docker-build-v2`)
-provides non-root source extraction and test execution, workspace diagnostics,
-and flexible E2E secret loading. It builds the application image and runs unit
+provides non-root source extraction and test execution, and flexible E2E secret loading. It builds the application image and runs unit
 and Playwright E2E tests.
 
 Before implementing `run-app-script`, read
@@ -32,7 +31,7 @@ compatibility; the non-root security changes are maintained in v2 only.
          - name: url
            value: https://github.com/catastrophe-brandon/konflux-pipelines.git
          - name: revision
-           value: 3f42408a0202be36ce41e4c11c4ca049bf97d415
+           value: d9defcaf6f7546563bcaad2f850488662d86503e
          - name: pathInRepo
            value: pipelines/platform-ui/docker-build-run-all-tests-v2.yaml
    ```
@@ -73,7 +72,7 @@ compatibility; the non-root security changes are maintained in v2 only.
    `run-app-script` serving the application on port 8000. If migrating from an
    older pipeline with a chrome-dev sidecar, follow the
    [chrome sidecar migration](./MIGRATION.md). Run both PR and push pipelines:
-   `diagnose-workspace` must pass, dependencies must install, and unit and E2E
+   source extraction and dependency installation must succeed, and unit and E2E
    tests must complete successfully.
 
 ### Validated consumer
@@ -85,14 +84,14 @@ ownership. This is a working migration example, not validation of every
 consumer or both trigger definitions. Select the workspace group and capacity
 for each environment rather than copying those values unchanged.
 
-The Git reference example uses `3f42408a0202be36ce41e4c11c4ca049bf97d415`, which
-rebases the same security and diagnostic changes onto updated Konflux task
-references. Astro's reported success was on the earlier revision; rerun consumer
+The Git reference example uses `d9defcaf6f7546563bcaad2f850488662d86503e`, which
+contains the security and extraction fixes with updated Konflux task
+references, without the temporary diagnostic step. Astro's reported success was on the earlier revision; rerun consumer
 validation when adopting the updated references.
 
 ## Non-root setup and tests
 
-The diagnostic, extraction, workspace setup, unit-test, proxy-route setup, and
+The extraction, workspace setup, unit-test, proxy-route setup, and
 Playwright steps run as UID/GID `1000:1000`, require non-root execution, and
 prevent privilege escalation. These settings apply to those steps; the
 application and proxy sidecars retain their own image/runtime identities.
@@ -104,7 +103,7 @@ repair permissions with root-run steps. Custom test images must support
 UID/GID `1000:1000`; in the pinned Playwright image, this is `ubuntu`, while
 `pwuser` is `1001:1001`.
 
-Diagnostics, extraction, setup, and unit tests use `/var/workdir` as `HOME`.
+Extraction, setup, and unit tests use `/var/workdir` as `HOME`.
 The Playwright step does not override `HOME`. Setup and tests run from
 `/var/workdir`; scripts for a repository subdirectory must change directory
 explicitly. The build's `path-context` does not change the test working directory.
@@ -212,7 +211,7 @@ routes and `HCC_ENV_URL` to reach the local application and upstream services.
 | Parameter | Purpose |
 | --- | --- |
 | `workspace-setup-script` | Optional non-root dependency setup inside `run-unit-tests`. |
-| `unit-test-image` | Image for diagnostics, setup, and unit tests; default UBI9 Node.js 22. |
+| `unit-test-image` | Image for setup and unit tests; default UBI9 Node.js 22. |
 | `unit-tests-script` | Required unit-test script. |
 | `e2e-tests-script` | Required E2E script, including readiness checks needed by the tests. |
 | `run-app-script` | Required application sidecar script, including the nop guard. |
@@ -230,9 +229,11 @@ for the complete parameter list and defaults.
 
 ## Troubleshooting from logs
 
-`diagnose-workspace` runs before extraction. It reports effective UID/groups,
-workspace ownership/mode, disk capacity, and inode availability, then creates
-and removes a temporary file. Failure stops the task before extraction.
+When troubleshooting workspace access, collect `id`,
+`stat -c '%u:%g %a %n' /var/workdir`, `df -h /var/workdir`, and
+`df -i /var/workdir` from a step using the same identity as extraction.
+If extraction fails, later setup and test scripts will not run; diagnostics
+for that failure must run before extraction.
 
 - **Permission denied:** Compare the groups printed by `id` with the writable
   group printed by `stat`. Astro's failing run had process group `1000` but
@@ -244,9 +245,9 @@ and removes a temporary file. Failure stops the task before extraction.
   root entry while extracting its contents. This preserves the mounted
   directory's metadata. Confirm the selected revision contains that fix.
 - **ENOSPC during npm installation:** Check disk and inode consumption; source,
-  dependencies, and the default npm cache share the workspace. Diagnostics show
-  usage before installation, so capture `df -h`, `df -i`, and directory sizes in
-  the setup script's failure handler if installation fills the volume.
+  dependencies, and the default npm cache share the workspace. Capture `df -h`,
+  `df -i`, and directory sizes in the setup script's failure handler if
+  installation fills the volume.
 - **Missing custom secret variable:** Check the Secret key's exact name and the
   `e2e-credentials-secret` parameter. `envFrom` does not rename keys. Avoid
   printing Secret values or dumping the environment into logs.
