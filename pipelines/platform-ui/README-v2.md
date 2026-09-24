@@ -394,6 +394,13 @@ caches and artifacts. A `tar: ./.git: Cannot mkdir: Permission denied` error in
 `use-trusted-artifact` means extraction still lacks access to its destination;
 application test-script changes will not fix that failure.
 
+Before extraction, `diagnose-workspace` logs the effective UID and groups,
+workspace ownership and permissions, and disk and inode availability. It also
+creates and removes a temporary file to check write access. If that check fails,
+the task stops with an explicit error before attempting extraction. Use this
+step's logs to diagnose workspace access without inspecting pods or printing
+credentials.
+
 The extraction step sets `TAR_OPTIONS=--no-recursion --anchored --exclude=.`
 to exclude only the archive's root directory entry while extracting its contents,
 including hidden files and executable scripts. The mounted workspace can be
