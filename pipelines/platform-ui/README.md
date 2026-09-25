@@ -1,6 +1,6 @@
 # Platform UI E2E Testing Pipeline
 
-> **Note**: This is version 1 of the pipeline. If you need to add custom secrets (Chromatic, Currents, etc.) without modifying the pipeline, see [README-v2.md](./README-v2.md) for the enhanced version with flexible secret management using `envFrom`.
+> **Deprecated:** Move both PR and push pipelines to [v2](./README-v2.md#migration-guide). V1 keeps legacy behavior; security changes live in v2.
 
 > **⚠️ CRITICAL**: Before implementing E2E tests with this pipeline, read [E2E-SIDECAR-BEST-PRACTICES.md](./E2E-SIDECAR-BEST-PRACTICES.md) to avoid common sidecar termination issues (Tekton issue #1347). **All `run-app-script` implementations MUST include the nop image guard documented there.**
 

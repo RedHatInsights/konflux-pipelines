@@ -1,3 +1,5 @@
+# DEPRECATED: All consumers must migrate to docker-build-run-all-tests-v2.yaml.
+# Legacy execution behavior is retained for migration compatibility; see README-v2.md.
 #
 # README
 # This pipeline definition contains custom tasks which are identified as such near the end of this file.
