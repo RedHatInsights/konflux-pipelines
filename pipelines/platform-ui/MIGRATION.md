@@ -1,5 +1,7 @@
 # Migration Guide: Chrome Sidecar Removal
 
+> V1 is deprecated. Also complete the [v2 migration](./README-v2.md#migration-guide) for both PR and push pipelines.
+
 ## Overview
 
 The `insights-chrome-dev` sidecar has been removed from the platform-ui e2e testing pipeline. This document helps identify affected repositories and provides migration steps.
