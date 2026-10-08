@@ -104,6 +104,14 @@ spec:
     type: string
     default: 'false'
     description: When "true", omit the build history (history timestamps, layer metadata, etc.) from the resulting image.
+  - name: additional-tags-from-label
+    type: string
+    default: ""
+    description: >-
+      Label name passed to apply-tags as ADDITIONAL_TAGS_FROM_LABEL (apply-tags
+      >= 0.3.2). Set to konflux.additional-tags to apply tags from that image
+      label. Required for label-based tags after 9 Nov 2026 when the task default
+      becomes empty. Leave empty to skip.
   results:
   - description: ""
     name: IMAGE_URL
@@ -527,6 +535,9 @@ spec:
       value:
       - "$(tasks.clone-repository.results.commit)"
       - "$(tasks.clone-repository.results.short-commit)"
+    # Requires apply-tags >= 0.3.2 (available 2026-10-10). Update digest below when published.
+    - name: ADDITIONAL_TAGS_FROM_LABEL
+      value: $(params.additional-tags-from-label)
     runAfter:
     - build-image-index
     taskRef:
@@ -534,6 +545,7 @@ spec:
       - name: name
         value: apply-tags
       - name: bundle
+        # TODO(2026-10-10): bump to task-apply-tags:0.3.2@sha256:<published-digest> then remove this comment
         value: quay.io/konflux-ci/tekton-catalog/task-apply-tags:0.3.1@sha256:c177fc2b2482b1299e713c51bf258eba4972c016ef260d9f45335c2550dc7b2b
       - name: kind
         value: task
