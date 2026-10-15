@@ -15,10 +15,12 @@ security changes live in v2.
    v2 executes `workspace-setup-script` through `bash -c`.
 3. Set workspace group and storage as shown below.
 4. Check secret names and set `e2e-hcc-env-url` explicitly if needed.
-5. Serve the app on port **8000**. Supply a routes ConfigMap with a nonempty
-   `routes` key. Include the [nop guard](./E2E-SIDECAR-BEST-PRACTICES.md) in
-   `run-app-script`. There is no chrome-dev sidecar; remove old chrome routes
-   using the [sidecar migration guide](./MIGRATION.md).
+5. Set `run-app-command` and `run-app-args` to start the application. V2 runs
+   the executable directly, so shell-less images work. The old `run-app-script`
+   parameter remains for manifest compatibility but is ignored. Serve the app
+   on `e2e-app-port` (default **8000**) and supply a routes ConfigMap with a
+   nonempty `routes` key. There is no chrome-dev sidecar; remove old chrome
+   routes using the [sidecar migration guide](./MIGRATION.md).
 6. Run both triggers. Check extraction, dependency installation, and all tests.
 
 ### Pipeline reference
@@ -41,6 +43,26 @@ spec:
 For annotation references, update the file URL and use Pipeline name
 `docker-build-v2`. Bundle users must select a bundle containing v2 through the
 [bundles resolver](https://tekton.dev/docs/pipelines/bundle-resolver/).
+
+### Application startup
+
+For example, start Caddy directly in a shell-less application image:
+
+```yaml
+params:
+  - name: run-app-command
+    value: caddy
+  - name: run-app-args
+    value:
+      - run
+      - --config
+      - /etc/caddy/Caddyfile
+      - --adapter
+      - caddyfile
+```
+
+To run a shell script, invoke the shell explicitly, for example with command
+`/bin/bash` and args `[-c, "npm run start"]`.
 
 ### Workspace
 
@@ -110,5 +132,5 @@ If extraction fails, setup and tests are skipped. Collect any filesystem
 diagnostics before extraction, using its identity.
 
 See the [pipeline YAML](./docker-build-run-all-tests-v2.yaml) for all parameters
-and defaults. The current proxy readiness check requires port 8000 even if
-`e2e-app-port` is changed.
+and defaults. The readiness check uses `e2e-app-port`; keep it aligned with the
+application listener and the target port in the proxy routes ConfigMap.
