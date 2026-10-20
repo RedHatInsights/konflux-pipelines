@@ -1,0 +1,110 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "gomod": {
+    "baseBranchPatterns": ["master", "main", "/^foreman-.*$/", "/^SATELLITE-.*$/"],
+    "packageRules": [
+      {
+        "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+        "description": "Disable gomod manager on foreman/satellite branches. This is needed to override default mintmaker config.",
+        "matchManagers": ["gomod"],
+        "enabled": false
+      },
+      {
+        "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+        "description": "Enable security alerts for go dependencies on foreman/satellite branches.",
+        "matchManagers": ["gomod"],
+        "matchJsonata": ["$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"],
+        "enabled": true
+      }
+    ]
+  },
+  "baseBranchPatterns": ["master", "main", "/^foreman-.*$/", "/^SATELLITE-.*$/"],
+  "packageRules": [
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Increase prConcurrentLimit for foreman/satellite branches to ensure continuous updates",
+      "prConcurrentLimit": 20,
+      "enabled": true
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Disable all managers except specific managers on foreman/satellite branches",
+      "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
+      "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Updates of Dockerfile and RPMs for foreman/satellite branches with immediate schedule",
+      "matchManagers": ["dockerfile"],
+      "groupName": "image-and-rpm-updates",
+      "enabled": true,
+      "postUpgradeTasks": {
+        "commands": [
+          "refresh-rpm-lockfiles -f \"$RENOVATE_POST_UPGRADE_COMMAND_DATA_FILE\""
+        ],
+        "fileFilters": [
+          "**/rpms.lock.yaml"
+        ],
+        "executionMode": "branch",
+        "dataFileTemplate": "[{{#each upgrades}}{\"packageFile\": \"{{{packageFile}}}\"}{{#unless @last}},{{\/unless}}{{\/each}}]"
+      },
+      "schedule": ["at any time"],
+      "automerge": true,
+      "autoApprove": true,
+      "recreateWhen": "always"
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Disable non-security RPM updates for foreman/satellite branches",
+      "matchManagers": ["rpm-lockfile"],
+      "matchJsonata": [
+          "$not($exists(isVulnerabilityAlert)) or isVulnerabilityAlert = false"
+      ],
+      "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Updates of security RPMs for foreman/satellite branches with immediate schedule",
+      "matchManagers": ["rpm-lockfile"],
+      "matchJsonata": [
+          "$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"
+      ],
+      "enabled": true,
+      "schedule": ["at any time"],
+      "automerge": true,
+      "autoApprove": true
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Disable non-iop Konflux pipeline updates for foreman/satellite branches",
+      "matchManagers": ["tekton"],
+      "matchFileNames": ["!.tekton/iop-*.yaml"],
+      "enabled": false
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Konflux pipeline updates for foreman/satellite branches with weekly schedule",
+      "matchManagers": ["tekton"],
+      "enabled": true,
+      "schedule": ["every weekend"],
+      "automerge": true,
+      "autoApprove": true
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Enable git submodule updates of frontend build tools for foreman/satellite branches",
+      "matchManagers": ["git-submodules"],
+      "matchDepNames": ["build-tools"],
+      "schedule": ["at any time"],
+      "enabled": true,
+      "automerge": true
+    },
+    {
+      "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
+      "description": "Enable security alerts for application dependencies on foreman/satellite branches.",
+      "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
+      "matchJsonata": ["$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"],
+      "enabled": true
+    }
+  ]
+}

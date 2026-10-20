@@ -1,0 +1,40 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/RedHatInsights/konflux-pipelines?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+      == "main"
+    pipelinesascode.tekton.dev/pipeline: pipelines/docker-build-oci-ta.yaml
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: konflux-pipelines
+    appstudio.openshift.io/component: docker-build-oci-ta
+    pipelines.appstudio.openshift.io/type: build
+  name: docker-build-oci-ta-on-push
+  namespace: hcc-integrations-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/redhat-user-workloads/hcc-integrations-tenant/konflux-pipelines/docker-build-oci-ta:{{revision}}
+  - name: dockerfile
+    value: dockerfiles/Dockerfile
+  - name: path-context
+    value: .
+  pipelineRef:
+    name: docker-build-oci-ta
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-docker-build-oci-ta
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
