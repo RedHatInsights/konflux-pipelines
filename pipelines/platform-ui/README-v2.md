@@ -170,7 +170,11 @@ spec:
       value: "http://localhost:1337"
 ```
 
-When omitted (default), existing consumer behavior is preserved.
+When omitted (default), existing consumer behavior is preserved. The parameter
+is carried through an internal variable (`_E2E_BASE_URL`) and only exported as
+`PLAYWRIGHT_BASE_URL` when non-empty. This prevents an empty explicit env entry
+from overriding `PLAYWRIGHT_BASE_URL` values supplied by `envFrom` or the runner
+image.
 
 ### Readiness checks
 
@@ -186,14 +190,43 @@ Configure the check with:
 The readiness check now uses the configured port instead of the previously
 hardcoded port 8000. Startup failures propagate to a failing check.
 
-## Diagnostic retention
+## Diagnostic and artifact retention
 
 Test diagnostics (exit code, image reference, test-results and playwright-report
-directory sizes) are logged after every E2E run, including failures. The original
-test exit code is preserved even if diagnostic collection runs afterward.
+directory sizes) are logged after every E2E run, including failures.
 
-To retrieve test artifacts from a Konflux pipeline run, use `tkn pipelinerun
-logs` or the Konflux UI to inspect the `run-e2e-tests` task logs.
+### OCI artifact upload
+
+After each E2E run the pipeline archives Playwright reports, traces, and
+screenshots (excluding credentials and authentication-state files) and uploads
+them as an OCI trusted artifact. The upload URI is derived from the build
+`output-image` with an `.e2e-results` suffix.
+
+The uploaded artifact URI is exposed as the `E2E_ARTIFACTS_URI` task result.
+
+### Retrieving artifacts
+
+Pull the uploaded artifacts using the trusted artifacts tool or `oras`:
+
+```bash
+# Via oras (replace URI with the E2E_ARTIFACTS_URI from the PipelineRun)
+oras pull <E2E_ARTIFACTS_URI>
+
+# The archive contains:
+#   metadata.json          — exit code and timestamp
+#   playwright-report/     — HTML report (if generated)
+#   test-results/          — traces and screenshots (if generated)
+```
+
+Credentials and authentication-state files (`storageState*`, `.auth/`,
+`credentials*`, `auth.json`) are excluded automatically.
+
+### Consumer script isolation
+
+The consumer's `e2e-tests-script` runs in a separate shell process. This ensures
+that `set -e` or explicit `exit` in the consumer script does not bypass
+diagnostic collection or artifact upload. The original exit code is preserved and
+propagated after post-test steps complete.
 
 ## Troubleshooting
 

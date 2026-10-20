@@ -812,6 +812,8 @@ spec:
         value: $(params.e2e-readiness-path)
       - name: READINESS_TIMEOUT
         value: $(params.e2e-readiness-timeout)
+      - name: E2E_OCI_STORAGE
+        value: $(params.output-image).e2e-results
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
@@ -872,11 +874,19 @@ spec:
         - description: Maximum seconds to wait for application readiness
           name: READINESS_TIMEOUT
           type: string
+        - description: OCI base URI for storing e2e test artifacts
+          name: E2E_OCI_STORAGE
+          type: string
+      results:
+      - name: E2E_ARTIFACTS_URI
+        description: OCI URI of uploaded e2e test artifacts (empty if no artifacts found)
       workspaces:
       - name: shared-workspace
         mountPath: /var/workdir
       volumes:
       - name: proxy-config
+        emptyDir: {}
+      - name: test-status
         emptyDir: {}
       - name: proxy-routes-configmap
         configMap:
@@ -1074,7 +1084,7 @@ spec:
               value: $(params.APPLICATION_IMAGE)
             - name: IMAGE_DIGEST
               value: $(params.IMAGE_DIGEST)
-            - name: PLAYWRIGHT_BASE_URL
+            - name: _E2E_BASE_URL
               value: $(params.BASE_URL)
           name: e2e-tests
           workingDir: /var/workdir
@@ -1090,6 +1100,9 @@ spec:
             runAsGroup: 1000
             runAsNonRoot: true
             allowPrivilegeEscalation: false
+          volumeMounts:
+          - name: test-status
+            mountPath: /var/test-status
           script: |
             #!/bin/bash
             # Record the tested image reference for diagnostics
@@ -1099,10 +1112,23 @@ spec:
             echo "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-<not set>}"
             echo "==========================="
 
-            # Execute the e2e tests script with secrets available as env vars
-            # Capture exit code to allow diagnostic collection on failure
-            set +e
+            # Only export PLAYWRIGHT_BASE_URL when explicitly set via e2e-base-url.
+            # An empty Kubernetes env entry overrides envFrom/image-supplied values,
+            # so an existing consumer's PLAYWRIGHT_BASE_URL would be silently cleared.
+            if [ -n "${_E2E_BASE_URL}" ]; then
+              export PLAYWRIGHT_BASE_URL="${_E2E_BASE_URL}"
+            fi
+
+            # Write consumer script to a temp file for subprocess execution.
+            # A separate shell process isolates set -e and explicit exit from
+            # the wrapper — both would otherwise skip diagnostic collection.
+            cat > /tmp/_e2e_consumer.sh << '_E2E_SCRIPT_BOUNDARY'
             $(params.e2e-tests-script)
+            _E2E_SCRIPT_BOUNDARY
+            chmod +x /tmp/_e2e_consumer.sh
+
+            set +e
+            /bin/bash /tmp/_e2e_consumer.sh
             TEST_EXIT_CODE=$?
             set -e
 
@@ -1119,8 +1145,56 @@ spec:
             fi
             echo "==========================="
 
-            # Propagate the original test exit code
-            exit ${TEST_EXIT_CODE}
+            # Prepare test artifacts for OCI upload (exclude credentials)
+            ARTIFACTS_DIR="/var/workdir/.e2e-artifacts"
+            mkdir -p "${ARTIFACTS_DIR}"
+            echo "{\"test_exit_code\":${TEST_EXIT_CODE},\"timestamp\":\"`date -u +%Y-%m-%dT%H:%M:%SZ`\"}" \
+              > "${ARTIFACTS_DIR}/metadata.json"
+
+            for dir in playwright-report test-results; do
+              if [ -d "${dir}" ]; then
+                cp -r "${dir}" "${ARTIFACTS_DIR}/"
+              fi
+            done
+
+            # Remove credentials and authentication-state files
+            find "${ARTIFACTS_DIR}" \( \
+              -name 'storageState*' -o \
+              -path '*/.auth/*' -o \
+              -name 'credentials*' -o \
+              -name 'auth.json' -o \
+              -name '*.credentials' \
+            \) -exec rm -rf {} + 2>/dev/null || true
+
+            artifact_count=`find "${ARTIFACTS_DIR}" -type f | wc -l`
+            echo "Prepared ${artifact_count} artifact files for upload"
+
+            # Save exit code for later propagation
+            echo -n "${TEST_EXIT_CODE}" > /var/test-status/exit-code
+
+            # Exit 0 so post-test steps (artifact upload) can run.
+            # The original test exit code is propagated by the final step.
+            exit 0
+        - name: upload-e2e-artifacts
+          image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+          args:
+          - create
+          - $(results.E2E_ARTIFACTS_URI.path)=$(params.E2E_OCI_STORAGE)=/var/workdir/.e2e-artifacts
+        - name: propagate-exit-code
+          image: quay.io/quay/busybox
+          volumeMounts:
+          - name: test-status
+            mountPath: /var/test-status
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          script: |
+            #!/bin/sh
+            CODE=`cat /var/test-status/exit-code 2>/dev/null || echo 1`
+            echo "Propagating e2e test exit code: ${CODE}"
+            exit ${CODE}
   workspaces:
   - name: workspace
   - name: git-auth
