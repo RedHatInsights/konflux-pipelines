@@ -69,6 +69,10 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
+  - default: ""
+    description: Target stage in Dockerfile to build. Empty preserves the Dockerfile default. Consumers select deploy, artifact, or another supported target explicitly.
+    name: target-stage
+    type: string
   - default: []
     description: Array of image labels to be applied to resulting image
     name: labels
@@ -143,6 +147,18 @@ spec:
     description: HCC environment URL
     type: string
     default: "https://console.stage.redhat.com"
+  - name: e2e-base-url
+    description: Optional Playwright base URL. When set, forwarded as PLAYWRIGHT_BASE_URL to the test runner. Leave empty to preserve existing consumer behavior.
+    type: string
+    default: ""
+  - name: e2e-readiness-path
+    description: Application readiness check path appended to the app URL (e.g. /api/v1/health). Empty checks the root page.
+    type: string
+    default: ""
+  - name: e2e-readiness-timeout
+    description: Maximum seconds to wait for application readiness before failing.
+    type: string
+    default: "120"
   - name: enable-package-registry-proxy
     default: 'true'
     description: Use the package registry proxy when prefetching dependencies
@@ -272,6 +288,8 @@ spec:
     - name: ANNOTATIONS
       value:
       - $(params.annotations[*])
+    - name: TARGET_STAGE
+      value: $(params.target-stage)
     - name: BUILDAH_FORMAT
       value: $(params.buildah-format)
     - name: HTTP_PROXY
@@ -486,6 +504,8 @@ spec:
       - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
+    - name: TARGET_STAGE
+      value: $(params.target-stage)
     - name: TARGET_DIRS
       value: $(params.sast-target-dirs)
     runAfter:
@@ -763,7 +783,9 @@ spec:
       - name: SOURCE_ARTIFACT
         value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
       - name: APPLICATION_IMAGE
-        value: $(tasks.build-image-index.results.IMAGE_URL)
+        value: $(tasks.build-image-index.results.IMAGE_URL)@$(tasks.build-image-index.results.IMAGE_DIGEST)
+      - name: IMAGE_DIGEST
+        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
       - name: e2e-tests-script
         value: $(params.e2e-tests-script)
       - name: APP_COMMAND
@@ -784,6 +806,12 @@ spec:
         value: $(params.e2e-hcc-env)
       - name: HCC_ENV_URL
         value: $(params.e2e-hcc-env-url)
+      - name: BASE_URL
+        value: $(params.e2e-base-url)
+      - name: READINESS_PATH
+        value: $(params.e2e-readiness-path)
+      - name: READINESS_TIMEOUT
+        value: $(params.e2e-readiness-timeout)
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
@@ -798,8 +826,11 @@ spec:
         - description: The Trusted Artifact URI pointing to the test source code
           name: SOURCE_ARTIFACT
           type: string
-        - description: The built application image to test
+        - description: The built application image to test (URL@digest for immutable reference)
           name: APPLICATION_IMAGE
+          type: string
+        - description: Image digest of the built application image
+          name: IMAGE_DIGEST
           type: string
         - description: The script to execute the e2e tests
           name: e2e-tests-script
@@ -832,6 +863,15 @@ spec:
         - description: HCC environment URL
           name: HCC_ENV_URL
           type: string
+        - description: Optional Playwright base URL
+          name: BASE_URL
+          type: string
+        - description: Application readiness check path
+          name: READINESS_PATH
+          type: string
+        - description: Maximum seconds to wait for application readiness
+          name: READINESS_TIMEOUT
+          type: string
       workspaces:
       - name: shared-workspace
         mountPath: /var/workdir
@@ -862,7 +902,7 @@ spec:
 
           echo "Waiting for /config/routes to be available..."
           timeout=60
-          max_wait=120
+          max_wait="${READINESS_TIMEOUT:-120}"
           elapsed=0
           while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
             echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
@@ -891,10 +931,11 @@ spec:
           fi
 
           # Wait for run-application to be ready on the configured port
-          echo "Waiting for run-application to be ready on port ${APP_PORT}..."
+          readiness_url="http://127.0.0.1:${APP_PORT}${READINESS_PATH}"
+          echo "Waiting for run-application to be ready at ${readiness_url}..."
           elapsed=0
           while [ $elapsed -lt $max_wait ]; do
-            if wget -q -O /dev/null --timeout=2 "http://127.0.0.1:${APP_PORT}" 2>/dev/null; then
+            if wget -q -O /dev/null --timeout=2 "${readiness_url}" 2>/dev/null; then
               echo "run-application is ready!"
               break
             fi
@@ -904,7 +945,7 @@ spec:
           done
 
           if [ $elapsed -ge $max_wait ]; then
-            echo "WARNING: run-application did not become ready after ${max_wait} seconds"
+            echo "ERROR: run-application did not become ready at ${readiness_url} after ${max_wait} seconds"
             exit 1
           fi
 
@@ -917,6 +958,12 @@ spec:
         env:
         - name: NO_PROXY
           value: "127.0.0.1,localhost"
+        - name: APP_PORT
+          value: $(params.APP_PORT)
+        - name: READINESS_PATH
+          value: $(params.READINESS_PATH)
+        - name: READINESS_TIMEOUT
+          value: $(params.READINESS_TIMEOUT)
         - name: HCC_ENV
           value: $(params.HCC_ENV)
         - name: PROXY_PORT
@@ -1023,6 +1070,12 @@ spec:
                   name: $(params.CREDENTIALS_SECRET)
                   key: e2e-stage-actual-hostname
                   optional: true
+            - name: APPLICATION_IMAGE
+              value: $(params.APPLICATION_IMAGE)
+            - name: IMAGE_DIGEST
+              value: $(params.IMAGE_DIGEST)
+            - name: PLAYWRIGHT_BASE_URL
+              value: $(params.BASE_URL)
           name: e2e-tests
           workingDir: /var/workdir
           computeResources:
@@ -1039,8 +1092,35 @@ spec:
             allowPrivilegeEscalation: false
           script: |
             #!/bin/bash
+            # Record the tested image reference for diagnostics
+            echo "=== E2E Test Diagnostics ==="
+            echo "APPLICATION_IMAGE=${APPLICATION_IMAGE}"
+            echo "IMAGE_DIGEST=${IMAGE_DIGEST}"
+            echo "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-<not set>}"
+            echo "==========================="
+
             # Execute the e2e tests script with secrets available as env vars
+            # Capture exit code to allow diagnostic collection on failure
+            set +e
             $(params.e2e-tests-script)
+            TEST_EXIT_CODE=$?
+            set -e
+
+            # Collect diagnostics regardless of test outcome
+            echo "=== Post-Test Diagnostics ==="
+            echo "Test exit code: ${TEST_EXIT_CODE}"
+            if [ -d "test-results" ]; then
+              size=`du -sh test-results 2>/dev/null | cut -f1`
+              echo "Test results directory found (${size})"
+            fi
+            if [ -d "playwright-report" ]; then
+              size=`du -sh playwright-report 2>/dev/null | cut -f1`
+              echo "Playwright report directory found (${size})"
+            fi
+            echo "==========================="
+
+            # Propagate the original test exit code
+            exit ${TEST_EXIT_CODE}
   workspaces:
   - name: workspace
   - name: git-auth

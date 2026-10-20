@@ -118,6 +118,83 @@ V2 explicitly maps these legacy keys:
 `HCC_ENV_URL` comes from the **`e2e-hcc-env-url` parameter**, not the Secret.
 Its default is `https://console.stage.redhat.com`. Keep secret values out of logs.
 
+## Build-target selection
+
+The optional `target-stage` parameter forwards `--target` to the Buildah task,
+selecting a named stage in your Dockerfile. Default is empty, which preserves
+the Dockerfile's last stage (backward-compatible).
+
+```yaml
+spec:
+  params:
+    - name: target-stage
+      value: deploy   # Select the "deploy" stage from Dockerfile.hermetic
+```
+
+**Key rules:**
+- Target selection is independent of hermetic mode. Setting `target-stage` does
+  not enable or disable build isolation.
+- `hermetic` remains `"false"` by default. Only explicit `hermetic: "true"`
+  enables network isolation.
+- `prefetch-input` alone does not enable hermetic execution.
+- Empty target preserves the Dockerfile default; the sast-coverity-check task
+  also receives the target to scan the correct stage.
+
+### Examples
+
+| Scenario | `hermetic` | `prefetch-input` | `target-stage` | Result |
+| --- | --- | --- | --- | --- |
+| Existing non-hermetic consumer | `"false"` (default) | `""` (default) | `""` (default) | Default Dockerfile output, unchanged |
+| Explicit target without hermetic | `"false"` | `""` | `deploy` | Builds deploy stage, network available |
+| Hermetic deploy image with npm prefetch | `"true"` | `npm` | `deploy` | Hermetic build of deploy stage |
+| Hermetic artifact image (SC components) | `"true"` | `npm` | `""` | Default stage (artifact in Dockerfile.hermetic) |
+
+## Immutable E2E image reference
+
+The E2E task now receives the built image as `IMAGE_URL@IMAGE_DIGEST` rather
+than just `IMAGE_URL`. This ensures E2E tests run against the exact built image
+by digest, not a mutable tag. The `IMAGE_DIGEST` and `APPLICATION_IMAGE`
+environment variables are available inside the test runner for diagnostics and
+assertions.
+
+## Browser and readiness configuration
+
+### Playwright base URL
+
+Set `e2e-base-url` to forward `PLAYWRIGHT_BASE_URL` to the test runner:
+
+```yaml
+spec:
+  params:
+    - name: e2e-base-url
+      value: "http://localhost:1337"
+```
+
+When omitted (default), existing consumer behavior is preserved.
+
+### Readiness checks
+
+The proxy sidecar waits for the application to become ready before starting.
+Configure the check with:
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `e2e-app-port` | `8000` | Port the application serves on |
+| `e2e-readiness-path` | `""` | Path appended to the app URL for readiness (e.g. `/api/v1/health`) |
+| `e2e-readiness-timeout` | `120` | Maximum seconds to wait before failing |
+
+The readiness check now uses the configured port instead of the previously
+hardcoded port 8000. Startup failures propagate to a failing check.
+
+## Diagnostic retention
+
+Test diagnostics (exit code, image reference, test-results and playwright-report
+directory sizes) are logged after every E2E run, including failures. The original
+test exit code is preserved even if diagnostic collection runs afterward.
+
+To retrieve test artifacts from a Konflux pipeline run, use `tkn pipelinerun
+logs` or the Konflux UI to inspect the `run-e2e-tests` task logs.
+
 ## Troubleshooting
 
 - **Permission denied:** Compare `id` groups with
@@ -134,3 +211,29 @@ diagnostics before extraction, using its identity.
 See the [pipeline YAML](./docker-build-run-all-tests-v2.yaml) for all parameters
 and defaults. The readiness check uses `e2e-app-port`; keep it aligned with the
 application listener and the target port in the proxy routes ConfigMap.
+
+## Learning Resources adoption
+
+[RHCLOUD-52264](https://redhat.atlassian.net/browse/RHCLOUD-52264) /
+[PR #377](https://github.com/RedHatInsights/learning-resources/pull/377) can
+consume this pipeline revision to test hermetic builds with the deploy target:
+
+```yaml
+spec:
+  params:
+    - name: hermetic
+      value: "true"
+    - name: prefetch-input
+      value: npm
+    - name: target-stage
+      value: deploy
+    - name: dockerfile
+      value: build-tools/Dockerfile.hermetic
+```
+
+This requires [RHCLOUD-52307](https://redhat.atlassian.net/browse/RHCLOUD-52307)
+/ [PR #451](https://github.com/RedHatInsights/insights-frontend-builder-common/pull/451)
+to be merged first, providing the `deploy` target in `Dockerfile.hermetic`.
+
+Consumer-specific Playwright coverage, candidate-asset assertions, and hermetic
+provenance verification are coordinated through RHCLOUD-52264.
