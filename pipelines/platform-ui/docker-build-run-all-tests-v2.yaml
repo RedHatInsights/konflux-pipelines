@@ -1071,6 +1071,9 @@ spec:
       steps:
         - name: setup-proxy-routes
           image: quay.io/quay/busybox
+          env:
+          - name: HOME
+            value: /tmp
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -1286,6 +1289,9 @@ spec:
           - $(results.E2E_ARTIFACTS_URI.path)=/var/workdir/.e2e-artifacts
         - name: propagate-exit-code
           image: quay.io/quay/busybox
+          env:
+          - name: HOME
+            value: /tmp
           volumeMounts:
           - name: test-status
             mountPath: /var/test-status
