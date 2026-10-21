@@ -69,10 +69,6 @@ spec:
     description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
     name: build-args-file
     type: string
-  - default: ""
-    description: Target stage in Dockerfile to build. Empty preserves the Dockerfile default. Consumers select deploy, artifact, or another supported target explicitly.
-    name: target-stage
-    type: string
   - default: []
     description: Array of image labels to be applied to resulting image
     name: labels
@@ -147,29 +143,6 @@ spec:
     description: HCC environment URL
     type: string
     default: "https://console.stage.redhat.com"
-  - name: e2e-base-url
-    description: Optional Playwright base URL. When set, forwarded as PLAYWRIGHT_BASE_URL to the test runner. Leave empty to preserve existing consumer behavior.
-    type: string
-    default: ""
-  - name: e2e-readiness-path
-    description: Application readiness check path appended to the app URL (e.g. /api/v1/health). Empty checks the root page.
-    type: string
-    default: ""
-  - name: e2e-readiness-timeout
-    description: Maximum seconds to wait for application readiness before failing.
-    type: string
-    default: "120"
-  - name: e2e-proxy-readiness-url
-    description: >-
-      Optional browser-facing URL for proxy readiness. When set, the E2E step
-      waits for this URL to respond before running the consumer script and
-      propagates timeout as a task failure. Use the actual hostname the proxy
-      serves (e.g. https://stage.foo.redhat.com:1337/) so TLS SNI and Host
-      match. Ensure the hostname resolves inside the pod via
-      podTemplate.hostAliases. When empty (default), the proxy readiness check
-      is skipped to preserve existing consumer behavior.
-    type: string
-    default: ""
   - name: enable-package-registry-proxy
     default: 'true'
     description: Use the package registry proxy when prefetching dependencies
@@ -299,8 +272,6 @@ spec:
     - name: ANNOTATIONS
       value:
       - $(params.annotations[*])
-    - name: TARGET_STAGE
-      value: $(params.target-stage)
     - name: BUILDAH_FORMAT
       value: $(params.buildah-format)
     - name: HTTP_PROXY
@@ -412,7 +383,7 @@ spec:
       - name: name
         value: roxctl-scan
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-roxctl-scan:0.1.1@sha256:4d2c2edcfa0e3616ceb3fe67534aa1955f73fc14209acf734f2d9c9f1f47de27
+        value: quay.io/konflux-ci/tekton-catalog/task-roxctl-scan:0.1.1@sha256:3841b3d56dad2fad1feebf03af775ac4f0baa627808db0621b52decea658bd7b
       - name: kind
         value: task
       resolver: bundles
@@ -481,7 +452,7 @@ spec:
       - name: name
         value: clamav-scan
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-clamav-scan:0.3.4@sha256:6406168c03f83558b4ff454fec2503269ee8f522ea2cd2d1b293cc75d37df32a
+        value: quay.io/konflux-ci/tekton-catalog/task-clamav-scan:0.3.4@sha256:6c7e4e239cb7f81b6e1bbfdfe6bda77c6902dd801afcad05a315c247ec5e7f88
       - name: kind
         value: task
       resolver: bundles
@@ -515,8 +486,6 @@ spec:
       - $(params.build-args[*])
     - name: BUILD_ARGS_FILE
       value: $(params.build-args-file)
-    - name: TARGET_STAGE
-      value: $(params.target-stage)
     - name: TARGET_DIRS
       value: $(params.sast-target-dirs)
     runAfter:
@@ -667,7 +636,7 @@ spec:
       - name: name
         value: rpms-signature-scan
       - name: bundle
-        value: quay.io/konflux-ci/tekton-catalog/task-rpms-signature-scan:0.2.2@sha256:3e9b994f069cd7179b07f3bacb569c13bb065a23326f41a0ec574ce66461ecbf
+        value: quay.io/konflux-ci/tekton-catalog/task-rpms-signature-scan:0.2.2@sha256:f3d7323f549c3e8af2fc0e0a9ae9bd9314922d65b0f163e4a9331430f7bbdbd3
       - name: kind
         value: task
       resolver: bundles
@@ -716,6 +685,8 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
+    - name: shared-workspace
+      workspace: workspace
     taskSpec:
       params:
       - description: The Trusted Artifact URI pointing to the artifact with the application source code.
@@ -730,24 +701,22 @@ spec:
       - description: Image to use for running unit tests
         name: UNIT_TEST_IMAGE
         type: string
-      volumes:
-      - name: test-workdir
-        emptyDir: {}
-      stepTemplate:
-        volumeMounts:
-        - name: test-workdir
-          mountPath: /var/workdir
+      workspaces:
+      - name: shared-workspace
+        mountPath: /var/workdir
       steps:
       - name: use-trusted-artifact
         image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
         env:
         - name: HOME
           value: /var/workdir
-        # Skip the archive root entry: emptyDir is owned by the step UID/GID,
-        # so tar cannot restore the volume root's mode and timestamps.
+        # Skip only the archive root entry: fsGroup grants write access, not
+        # ownership needed to restore the volume root's mode and timestamps.
         # --no-recursion keeps the exclusion from also excluding its contents.
         - name: TAR_OPTIONS
           value: "--no-recursion --anchored --exclude=."
+        # Extract source as the same identity that installs dependencies and runs tests.
+        # The PipelineRun must provide a workspace writable by this identity.
         securityContext:
           runAsUser: 1000
           runAsGroup: 1000
@@ -794,9 +763,7 @@ spec:
       - name: SOURCE_ARTIFACT
         value: $(tasks.clone-repository-oci-ta.results.SOURCE_ARTIFACT)
       - name: APPLICATION_IMAGE
-        value: $(tasks.build-image-index.results.IMAGE_URL)@$(tasks.build-image-index.results.IMAGE_DIGEST)
-      - name: IMAGE_DIGEST
-        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+        value: $(tasks.build-image-index.results.IMAGE_URL)
       - name: e2e-tests-script
         value: $(params.e2e-tests-script)
       - name: APP_COMMAND
@@ -817,18 +784,6 @@ spec:
         value: $(params.e2e-hcc-env)
       - name: HCC_ENV_URL
         value: $(params.e2e-hcc-env-url)
-      - name: BASE_URL
-        value: $(params.e2e-base-url)
-      - name: READINESS_PATH
-        value: $(params.e2e-readiness-path)
-      - name: READINESS_TIMEOUT
-        value: $(params.e2e-readiness-timeout)
-      - name: PROXY_READINESS_URL
-        value: $(params.e2e-proxy-readiness-url)
-      - name: WORKSPACE_SETUP_SCRIPT
-        value: $(params.workspace-setup-script)
-      - name: E2E_OCI_STORAGE
-        value: $(params.output-image).e2e-results
     runAfter:
     - clone-repository-oci-ta
     - build-image-index
@@ -836,16 +791,15 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
+    - name: shared-workspace
+      workspace: workspace
     taskSpec:
       params:
         - description: The Trusted Artifact URI pointing to the test source code
           name: SOURCE_ARTIFACT
           type: string
-        - description: The built application image to test (URL@digest for immutable reference)
+        - description: The built application image to test
           name: APPLICATION_IMAGE
-          type: string
-        - description: Image digest of the built application image
-          name: IMAGE_DIGEST
           type: string
         - description: The script to execute the e2e tests
           name: e2e-tests-script
@@ -878,33 +832,11 @@ spec:
         - description: HCC environment URL
           name: HCC_ENV_URL
           type: string
-        - description: Optional Playwright base URL
-          name: BASE_URL
-          type: string
-        - description: Application readiness check path
-          name: READINESS_PATH
-          type: string
-        - description: Maximum seconds to wait for application readiness
-          name: READINESS_TIMEOUT
-          type: string
-        - description: Optional browser-facing URL to probe for proxy readiness
-          name: PROXY_READINESS_URL
-          type: string
-        - description: OCI base URI for storing e2e test artifacts
-          name: E2E_OCI_STORAGE
-          type: string
-        - description: Script to run before E2E tests to set up workspace (e.g., npm install)
-          name: WORKSPACE_SETUP_SCRIPT
-          type: string
-      results:
-      - name: E2E_ARTIFACTS_URI
-        description: OCI URI of uploaded e2e test artifacts (empty if no artifacts found)
+      workspaces:
+      - name: shared-workspace
+        mountPath: /var/workdir
       volumes:
-      - name: test-workdir
-        emptyDir: {}
       - name: proxy-config
-        emptyDir: {}
-      - name: test-status
         emptyDir: {}
       - name: proxy-routes-configmap
         configMap:
@@ -913,10 +845,6 @@ spec:
           items:
           - key: routes
             path: routes
-      stepTemplate:
-        volumeMounts:
-        - name: test-workdir
-          mountPath: /var/workdir
       sidecars:
       - image: $(params.PROXY_IMAGE)
         name: frontend-dev-proxy
@@ -934,7 +862,7 @@ spec:
 
           echo "Waiting for /config/routes to be available..."
           timeout=60
-          max_wait="${READINESS_TIMEOUT:-120}"
+          max_wait=120
           elapsed=0
           while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
             echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
@@ -963,11 +891,10 @@ spec:
           fi
 
           # Wait for run-application to be ready on the configured port
-          readiness_url="http://127.0.0.1:${APP_PORT}${READINESS_PATH}"
-          echo "Waiting for run-application to be ready at ${readiness_url}..."
+          echo "Waiting for run-application to be ready on port ${APP_PORT}..."
           elapsed=0
           while [ $elapsed -lt $max_wait ]; do
-            if wget -q -O /dev/null --timeout=2 "${readiness_url}" 2>/dev/null; then
+            if wget -q -O /dev/null --timeout=2 "http://127.0.0.1:${APP_PORT}" 2>/dev/null; then
               echo "run-application is ready!"
               break
             fi
@@ -977,7 +904,7 @@ spec:
           done
 
           if [ $elapsed -ge $max_wait ]; then
-            echo "ERROR: run-application did not become ready at ${readiness_url} after ${max_wait} seconds"
+            echo "WARNING: run-application did not become ready after ${max_wait} seconds"
             exit 1
           fi
 
@@ -990,12 +917,6 @@ spec:
         env:
         - name: NO_PROXY
           value: "127.0.0.1,localhost"
-        - name: APP_PORT
-          value: $(params.APP_PORT)
-        - name: READINESS_PATH
-          value: $(params.READINESS_PATH)
-        - name: READINESS_TIMEOUT
-          value: $(params.READINESS_TIMEOUT)
         - name: HCC_ENV
           value: $(params.HCC_ENV)
         - name: PROXY_PORT
@@ -1040,47 +961,8 @@ spec:
         securityContext:
           privileged: false
       steps:
-        - name: use-trusted-artifact
-          image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
-          env:
-          - name: HOME
-            value: /var/workdir
-          # Skip only the archive root entry: emptyDir is owned by the step
-          # UID/GID, so tar cannot restore the volume root's mode/timestamps.
-          - name: TAR_OPTIONS
-            value: "--no-recursion --anchored --exclude=."
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-          args:
-          - use
-          - $(params.SOURCE_ARTIFACT)=/var/workdir
-        - name: workspace-setup
-          image: $(params.PLAYWRIGHT_IMAGE)
-          workingDir: /var/workdir
-          env:
-          - name: HOME
-            value: /var/workdir
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-          script: |
-            #!/bin/bash
-            if [ -n "$(params.WORKSPACE_SETUP_SCRIPT)" ]; then
-              echo "Running workspace setup in E2E task..."
-              bash -c "$(params.WORKSPACE_SETUP_SCRIPT)"
-            else
-              echo "No workspace setup script provided, skipping..."
-            fi
         - name: setup-proxy-routes
           image: quay.io/quay/busybox
-          env:
-          - name: HOME
-            value: /tmp
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -1141,16 +1023,6 @@ spec:
                   name: $(params.CREDENTIALS_SECRET)
                   key: e2e-stage-actual-hostname
                   optional: true
-            - name: APPLICATION_IMAGE
-              value: $(params.APPLICATION_IMAGE)
-            - name: IMAGE_DIGEST
-              value: $(params.IMAGE_DIGEST)
-            - name: _E2E_BASE_URL
-              value: $(params.BASE_URL)
-            - name: READINESS_TIMEOUT
-              value: $(params.READINESS_TIMEOUT)
-            - name: _PROXY_READINESS_URL
-              value: $(params.PROXY_READINESS_URL)
           name: e2e-tests
           workingDir: /var/workdir
           computeResources:
@@ -1165,156 +1037,10 @@ spec:
             runAsGroup: 1000
             runAsNonRoot: true
             allowPrivilegeEscalation: false
-          volumeMounts:
-          - name: test-status
-            mountPath: /var/test-status
           script: |
             #!/bin/bash
-            # Record the tested image reference for diagnostics
-            echo "=== E2E Test Diagnostics ==="
-            echo "APPLICATION_IMAGE=${APPLICATION_IMAGE}"
-            echo "IMAGE_DIGEST=${IMAGE_DIGEST}"
-            echo "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-<not set>}"
-            echo "==========================="
-
-            # Only export PLAYWRIGHT_BASE_URL when explicitly set via e2e-base-url.
-            # An empty Kubernetes env entry overrides envFrom/image-supplied values,
-            # so an existing consumer's PLAYWRIGHT_BASE_URL would be silently cleared.
-            if [ -n "${_E2E_BASE_URL}" ]; then
-              export PLAYWRIGHT_BASE_URL="${_E2E_BASE_URL}"
-            fi
-
-            # --- Proxy readiness check (optional) ---
-            # When e2e-proxy-readiness-url is set, wait for the proxy to respond
-            # on the browser-facing URL before running tests. The consumer must
-            # supply the actual hostname the proxy serves (e.g.
-            # https://stage.foo.redhat.com:1337/) and ensure it resolves inside
-            # the pod via podTemplate.hostAliases → 127.0.0.1.
-            # When omitted, this check is skipped entirely.
-            if [ -n "${_PROXY_READINESS_URL}" ]; then
-              PROXY_TIMEOUT="${READINESS_TIMEOUT:-120}"
-              echo "Waiting for proxy readiness at ${_PROXY_READINESS_URL} (timeout ${PROXY_TIMEOUT}s)..."
-              elapsed=0
-              proxy_ready=false
-              while [ $elapsed -lt $PROXY_TIMEOUT ]; do
-                if wget -q -O /dev/null --no-check-certificate \
-                     --timeout=2 "${_PROXY_READINESS_URL}" 2>/dev/null; then
-                  echo "Proxy is ready!"
-                  proxy_ready=true
-                  break
-                fi
-                echo "Waiting for proxy... ($elapsed/${PROXY_TIMEOUT}s)"
-                sleep 2
-                elapsed=$((elapsed + 2))
-              done
-
-              if [ "${proxy_ready}" != "true" ]; then
-                echo "ERROR: proxy not ready at ${_PROXY_READINESS_URL} after ${PROXY_TIMEOUT}s"
-                echo "Check that the hostname resolves inside the pod (podTemplate.hostAliases)"
-                echo "and that the proxy sidecar started successfully."
-                echo -n "1" > /var/test-status/exit-code
-                echo "=== Post-Test Diagnostics ==="
-                echo "Test exit code: 1 (proxy readiness timeout)"
-                echo "==========================="
-                exit 0
-              fi
-            fi
-
-            # Write consumer script to a temp file for subprocess execution.
-            # A separate shell process isolates set -e and explicit exit from
-            # the wrapper — both would otherwise skip diagnostic collection.
-            cat > /tmp/_e2e_consumer.sh << '_E2E_SCRIPT_BOUNDARY'
+            # Execute the e2e tests script with secrets available as env vars
             $(params.e2e-tests-script)
-            _E2E_SCRIPT_BOUNDARY
-            chmod +x /tmp/_e2e_consumer.sh
-
-            set +e
-            /bin/bash /tmp/_e2e_consumer.sh
-            TEST_EXIT_CODE=$?
-            set -e
-
-            # Save exit code IMMEDIATELY — before any artifact preparation
-            # that could fail and prevent recording it.
-            echo -n "${TEST_EXIT_CODE}" > /var/test-status/exit-code
-
-            # Collect diagnostics regardless of test outcome
-            echo "=== Post-Test Diagnostics ==="
-            echo "Test exit code: ${TEST_EXIT_CODE}"
-            if [ -d "test-results" ]; then
-              size=`du -sh test-results 2>/dev/null | cut -f1`
-              echo "Test results directory found (${size})"
-            fi
-            if [ -d "playwright-report" ]; then
-              size=`du -sh playwright-report 2>/dev/null | cut -f1`
-              echo "Playwright report directory found (${size})"
-            fi
-            echo "==========================="
-
-            # Prepare test artifacts for OCI upload (best-effort).
-            # Failures here must not prevent exit-code propagation.
-            set +e
-            ARTIFACTS_DIR="/var/workdir/.e2e-artifacts"
-            mkdir -p "${ARTIFACTS_DIR}"
-            if [ $? -ne 0 ]; then
-              echo "WARNING: failed to create artifacts directory — skipping artifact collection"
-              exit 0
-            fi
-
-            echo "{\"test_exit_code\":${TEST_EXIT_CODE},\"timestamp\":\"`date -u +%Y-%m-%dT%H:%M:%SZ`\"}" \
-              > "${ARTIFACTS_DIR}/metadata.json"
-
-            for dir in playwright-report test-results; do
-              if [ -d "${dir}" ]; then
-                cp -r "${dir}" "${ARTIFACTS_DIR}/" || \
-                  echo "WARNING: failed to copy ${dir} — continuing"
-              fi
-            done
-
-            # Remove credentials and authentication-state files
-            find "${ARTIFACTS_DIR}" \( \
-              -name 'storageState*' -o \
-              -path '*/.auth/*' -o \
-              -name 'credentials*' -o \
-              -name 'auth.json' -o \
-              -name '*.credentials' \
-            \) -exec rm -rf {} + 2>/dev/null || true
-
-            artifact_count=`find "${ARTIFACTS_DIR}" -type f | wc -l`
-            echo "Prepared ${artifact_count} artifact files for upload"
-            set -e
-
-            # Exit 0 so post-test steps (artifact upload) can run.
-            # The original test exit code is propagated by the final step.
-            exit 0
-        - name: upload-e2e-artifacts
-          image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
-          onError: continue
-          args:
-          - create
-          - --store
-          - $(params.E2E_OCI_STORAGE)
-          - $(results.E2E_ARTIFACTS_URI.path)=/var/workdir/.e2e-artifacts
-        - name: propagate-exit-code
-          image: quay.io/quay/busybox
-          env:
-          - name: HOME
-            value: /tmp
-          volumeMounts:
-          - name: test-status
-            mountPath: /var/test-status
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-          script: |
-            #!/bin/sh
-            # The upload step uses onError: continue — if it failed, its
-            # logs show the cause but this step still runs. Upload failure
-            # is non-fatal and never masks the test outcome.
-            CODE=`cat /var/test-status/exit-code 2>/dev/null || echo 1`
-            echo "Propagating e2e test exit code: ${CODE}"
-            exit ${CODE}
   workspaces:
   - name: workspace
   - name: git-auth
