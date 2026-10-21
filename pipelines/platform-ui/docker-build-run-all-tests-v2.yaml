@@ -736,6 +736,41 @@ spec:
       - name: shared-workspace
         mountPath: /var/workdir
       steps:
+      - name: workspace-permission-diagnostics
+        image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+        env:
+        - name: HOME
+          value: /var/workdir
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "=== Workspace Permission Diagnostics ==="
+          echo "--- id ---"
+          id
+          echo "--- /var/workdir ownership and mode ---"
+          ls -la /var/ | grep workdir
+          ls -la /var/workdir/ 2>/dev/null || echo "(empty or inaccessible)"
+          echo "--- stat /var/workdir ---"
+          stat /var/workdir
+          echo "--- .git check ---"
+          if [ -e /var/workdir/.git ]; then
+            ls -la /var/workdir/.git
+            stat /var/workdir/.git
+          else
+            echo "no .git present"
+          fi
+          echo "--- write test ---"
+          if test -w /var/workdir; then
+            echo "/var/workdir IS writable"
+          else
+            echo "/var/workdir is NOT writable"
+          fi
+          echo "=== End Diagnostics ==="
       - name: use-trusted-artifact
         image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
         env:
