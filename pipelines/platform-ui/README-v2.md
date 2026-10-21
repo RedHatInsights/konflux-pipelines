@@ -186,16 +186,45 @@ Configure the check with:
 | `e2e-app-port` | `8000` | Port the application serves on |
 | `e2e-readiness-path` | `""` | Path appended to the app URL for readiness (e.g. `/api/v1/health`) |
 | `e2e-readiness-timeout` | `120` | Maximum seconds to wait before failing |
+| `e2e-proxy-readiness-url` | `""` | Browser-facing URL to probe for proxy readiness (e.g. `https://stage.foo.redhat.com:1337/`) |
 
 The readiness check now uses the configured port instead of the previously
 hardcoded port 8000. Startup failures propagate to a failing check.
 
-The E2E test step also waits for the proxy HTTPS endpoint (port 1337) before
-running the consumer script. This ensures the full request chain
-(browser → proxy → application) is ready before browser tests begin. The
-proxy readiness check reuses `e2e-readiness-timeout` and emits a warning
-(rather than a hard failure) if the proxy is not responding, since some
-consumers may not use the proxy.
+#### Proxy readiness
+
+When `e2e-proxy-readiness-url` is set, the E2E test step waits for the proxy to
+respond at that URL before running the consumer script. The URL must use the
+actual hostname the proxy serves (e.g. `https://stage.foo.redhat.com:1337/`)
+so that TLS SNI and HTTP Host match. If the proxy does not respond within
+`e2e-readiness-timeout` seconds, the task **fails** and the timeout propagates
+through diagnostics and exit-code handling.
+
+When omitted (default), the proxy readiness check is skipped entirely, preserving
+existing consumer behavior.
+
+**Hostname resolution**: The hostname in the URL must resolve to `127.0.0.1`
+inside the pod (all containers share a network namespace). Add a `hostAliases`
+entry to the PipelineRun:
+
+```yaml
+spec:
+  taskRunSpecs:
+    - pipelineTaskName: run-e2e-tests
+      podTemplate:
+        hostAliases:
+          - ip: "127.0.0.1"
+            hostnames:
+              - "stage.foo.redhat.com"
+```
+
+#### Proxy readiness scenarios
+
+| Configuration | Behavior |
+| --- | --- |
+| `e2e-proxy-readiness-url` omitted | No proxy check. Consumer script runs immediately after image diagnostics. |
+| URL set, proxy healthy | Probe succeeds within timeout. Consumer script runs. |
+| URL set, proxy unavailable | Probe times out. Task fails with exit code 1 and diagnostics showing the timeout. |
 
 ## Diagnostic and artifact retention
 

@@ -159,6 +159,17 @@ spec:
     description: Maximum seconds to wait for application readiness before failing.
     type: string
     default: "120"
+  - name: e2e-proxy-readiness-url
+    description: >-
+      Optional browser-facing URL for proxy readiness. When set, the E2E step
+      waits for this URL to respond before running the consumer script and
+      propagates timeout as a task failure. Use the actual hostname the proxy
+      serves (e.g. https://stage.foo.redhat.com:1337/) so TLS SNI and Host
+      match. Ensure the hostname resolves inside the pod via
+      podTemplate.hostAliases. When empty (default), the proxy readiness check
+      is skipped to preserve existing consumer behavior.
+    type: string
+    default: ""
   - name: enable-package-registry-proxy
     default: 'true'
     description: Use the package registry proxy when prefetching dependencies
@@ -812,6 +823,8 @@ spec:
         value: $(params.e2e-readiness-path)
       - name: READINESS_TIMEOUT
         value: $(params.e2e-readiness-timeout)
+      - name: PROXY_READINESS_URL
+        value: $(params.e2e-proxy-readiness-url)
       - name: E2E_OCI_STORAGE
         value: $(params.output-image).e2e-results
     runAfter:
@@ -873,6 +886,9 @@ spec:
           type: string
         - description: Maximum seconds to wait for application readiness
           name: READINESS_TIMEOUT
+          type: string
+        - description: Optional browser-facing URL to probe for proxy readiness
+          name: PROXY_READINESS_URL
           type: string
         - description: OCI base URI for storing e2e test artifacts
           name: E2E_OCI_STORAGE
@@ -1088,6 +1104,8 @@ spec:
               value: $(params.BASE_URL)
             - name: READINESS_TIMEOUT
               value: $(params.READINESS_TIMEOUT)
+            - name: _PROXY_READINESS_URL
+              value: $(params.PROXY_READINESS_URL)
           name: e2e-tests
           workingDir: /var/workdir
           computeResources:
@@ -1121,24 +1139,40 @@ spec:
               export PLAYWRIGHT_BASE_URL="${_E2E_BASE_URL}"
             fi
 
-            # Wait for the proxy HTTPS endpoint before running browser tests.
-            # The proxy sidecar waits for the app, then starts Caddy. Tests must
-            # not begin until the proxy is serving on its HTTPS port (1337).
-            PROXY_PORT=1337
-            PROXY_TIMEOUT="${READINESS_TIMEOUT:-120}"
-            echo "Waiting for proxy to be ready on port ${PROXY_PORT}..."
-            elapsed=0
-            while [ $elapsed -lt $PROXY_TIMEOUT ]; do
-              if wget -q -O /dev/null --no-check-certificate \
-                   --timeout=2 "https://127.0.0.1:${PROXY_PORT}/" 2>/dev/null; then
-                echo "Proxy is ready!"
-                break
+            # --- Proxy readiness check (optional) ---
+            # When e2e-proxy-readiness-url is set, wait for the proxy to respond
+            # on the browser-facing URL before running tests. The consumer must
+            # supply the actual hostname the proxy serves (e.g.
+            # https://stage.foo.redhat.com:1337/) and ensure it resolves inside
+            # the pod via podTemplate.hostAliases → 127.0.0.1.
+            # When omitted, this check is skipped entirely.
+            if [ -n "${_PROXY_READINESS_URL}" ]; then
+              PROXY_TIMEOUT="${READINESS_TIMEOUT:-120}"
+              echo "Waiting for proxy readiness at ${_PROXY_READINESS_URL} (timeout ${PROXY_TIMEOUT}s)..."
+              elapsed=0
+              proxy_ready=false
+              while [ $elapsed -lt $PROXY_TIMEOUT ]; do
+                if wget -q -O /dev/null --no-check-certificate \
+                     --timeout=2 "${_PROXY_READINESS_URL}" 2>/dev/null; then
+                  echo "Proxy is ready!"
+                  proxy_ready=true
+                  break
+                fi
+                echo "Waiting for proxy... ($elapsed/${PROXY_TIMEOUT}s)"
+                sleep 2
+                elapsed=$((elapsed + 2))
+              done
+
+              if [ "${proxy_ready}" != "true" ]; then
+                echo "ERROR: proxy not ready at ${_PROXY_READINESS_URL} after ${PROXY_TIMEOUT}s"
+                echo "Check that the hostname resolves inside the pod (podTemplate.hostAliases)"
+                echo "and that the proxy sidecar started successfully."
+                echo -n "1" > /var/test-status/exit-code
+                echo "=== Post-Test Diagnostics ==="
+                echo "Test exit code: 1 (proxy readiness timeout)"
+                echo "==========================="
+                exit 0
               fi
-              sleep 2
-              elapsed=$((elapsed + 2))
-            done
-            if [ $elapsed -ge $PROXY_TIMEOUT ]; then
-              echo "WARNING: proxy not ready after ${PROXY_TIMEOUT}s — tests may fail"
             fi
 
             # Write consumer script to a temp file for subprocess execution.
