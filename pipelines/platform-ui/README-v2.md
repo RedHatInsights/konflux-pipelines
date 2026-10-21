@@ -190,6 +190,13 @@ Configure the check with:
 The readiness check now uses the configured port instead of the previously
 hardcoded port 8000. Startup failures propagate to a failing check.
 
+The E2E test step also waits for the proxy HTTPS endpoint (port 1337) before
+running the consumer script. This ensures the full request chain
+(browser → proxy → application) is ready before browser tests begin. The
+proxy readiness check reuses `e2e-readiness-timeout` and emits a warning
+(rather than a hard failure) if the proxy is not responding, since some
+consumers may not use the proxy.
+
 ## Diagnostic and artifact retention
 
 Test diagnostics (exit code, image reference, test-results and playwright-report
@@ -206,11 +213,20 @@ The uploaded artifact URI is exposed as the `E2E_ARTIFACTS_URI` task result.
 
 ### Retrieving artifacts
 
-Pull the uploaded artifacts using the trusted artifacts tool or `oras`:
+The `E2E_ARTIFACTS_URI` result contains a trusted-artifact URI
+(`oci:<repository>@sha256:<digest>`). This is an OCI blob reference, not a
+directly pullable manifest. Retrieve artifacts using one of these methods:
 
 ```bash
-# Via oras (replace URI with the E2E_ARTIFACTS_URI from the PipelineRun)
-oras pull <E2E_ARTIFACTS_URI>
+# Method 1 — trusted-artifacts CLI (recommended)
+# The `use` command extracts the archive to the destination directory.
+build-trusted-artifacts use <E2E_ARTIFACTS_URI>=/tmp/e2e-output
+
+# Method 2 — oras blob fetch (manual)
+# Strip the "oci:" prefix, then fetch and extract the blob.
+URI="<E2E_ARTIFACTS_URI>"
+REF="${URI#oci:}"
+oras blob fetch "${REF}" --output - | tar -xzf - -C /tmp/e2e-output
 
 # The archive contains:
 #   metadata.json          — exit code and timestamp
@@ -220,6 +236,10 @@ oras pull <E2E_ARTIFACTS_URI>
 
 Credentials and authentication-state files (`storageState*`, `.auth/`,
 `credentials*`, `auth.json`) are excluded automatically.
+
+The upload step uses `onError: continue` — if artifact upload fails, it does
+not mask the original test outcome. The `propagate-exit-code` step always
+reports the real test exit code.
 
 ### Consumer script isolation
 

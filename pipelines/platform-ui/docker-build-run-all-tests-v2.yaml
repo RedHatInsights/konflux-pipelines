@@ -1086,6 +1086,8 @@ spec:
               value: $(params.IMAGE_DIGEST)
             - name: _E2E_BASE_URL
               value: $(params.BASE_URL)
+            - name: READINESS_TIMEOUT
+              value: $(params.READINESS_TIMEOUT)
           name: e2e-tests
           workingDir: /var/workdir
           computeResources:
@@ -1119,6 +1121,26 @@ spec:
               export PLAYWRIGHT_BASE_URL="${_E2E_BASE_URL}"
             fi
 
+            # Wait for the proxy HTTPS endpoint before running browser tests.
+            # The proxy sidecar waits for the app, then starts Caddy. Tests must
+            # not begin until the proxy is serving on its HTTPS port (1337).
+            PROXY_PORT=1337
+            PROXY_TIMEOUT="${READINESS_TIMEOUT:-120}"
+            echo "Waiting for proxy to be ready on port ${PROXY_PORT}..."
+            elapsed=0
+            while [ $elapsed -lt $PROXY_TIMEOUT ]; do
+              if wget -q -O /dev/null --no-check-certificate \
+                   --timeout=2 "https://127.0.0.1:${PROXY_PORT}/" 2>/dev/null; then
+                echo "Proxy is ready!"
+                break
+              fi
+              sleep 2
+              elapsed=$((elapsed + 2))
+            done
+            if [ $elapsed -ge $PROXY_TIMEOUT ]; then
+              echo "WARNING: proxy not ready after ${PROXY_TIMEOUT}s — tests may fail"
+            fi
+
             # Write consumer script to a temp file for subprocess execution.
             # A separate shell process isolates set -e and explicit exit from
             # the wrapper — both would otherwise skip diagnostic collection.
@@ -1131,6 +1153,10 @@ spec:
             /bin/bash /tmp/_e2e_consumer.sh
             TEST_EXIT_CODE=$?
             set -e
+
+            # Save exit code IMMEDIATELY — before any artifact preparation
+            # that could fail and prevent recording it.
+            echo -n "${TEST_EXIT_CODE}" > /var/test-status/exit-code
 
             # Collect diagnostics regardless of test outcome
             echo "=== Post-Test Diagnostics ==="
@@ -1145,15 +1171,23 @@ spec:
             fi
             echo "==========================="
 
-            # Prepare test artifacts for OCI upload (exclude credentials)
+            # Prepare test artifacts for OCI upload (best-effort).
+            # Failures here must not prevent exit-code propagation.
+            set +e
             ARTIFACTS_DIR="/var/workdir/.e2e-artifacts"
             mkdir -p "${ARTIFACTS_DIR}"
+            if [ $? -ne 0 ]; then
+              echo "WARNING: failed to create artifacts directory — skipping artifact collection"
+              exit 0
+            fi
+
             echo "{\"test_exit_code\":${TEST_EXIT_CODE},\"timestamp\":\"`date -u +%Y-%m-%dT%H:%M:%SZ`\"}" \
               > "${ARTIFACTS_DIR}/metadata.json"
 
             for dir in playwright-report test-results; do
               if [ -d "${dir}" ]; then
-                cp -r "${dir}" "${ARTIFACTS_DIR}/"
+                cp -r "${dir}" "${ARTIFACTS_DIR}/" || \
+                  echo "WARNING: failed to copy ${dir} — continuing"
               fi
             done
 
@@ -1168,18 +1202,19 @@ spec:
 
             artifact_count=`find "${ARTIFACTS_DIR}" -type f | wc -l`
             echo "Prepared ${artifact_count} artifact files for upload"
-
-            # Save exit code for later propagation
-            echo -n "${TEST_EXIT_CODE}" > /var/test-status/exit-code
+            set -e
 
             # Exit 0 so post-test steps (artifact upload) can run.
             # The original test exit code is propagated by the final step.
             exit 0
         - name: upload-e2e-artifacts
           image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+          onError: continue
           args:
           - create
-          - $(results.E2E_ARTIFACTS_URI.path)=$(params.E2E_OCI_STORAGE)=/var/workdir/.e2e-artifacts
+          - --store
+          - $(params.E2E_OCI_STORAGE)
+          - $(results.E2E_ARTIFACTS_URI.path)=/var/workdir/.e2e-artifacts
         - name: propagate-exit-code
           image: quay.io/quay/busybox
           volumeMounts:
@@ -1192,6 +1227,9 @@ spec:
             allowPrivilegeEscalation: false
           script: |
             #!/bin/sh
+            # The upload step uses onError: continue — if it failed, its
+            # logs show the cause but this step still runs. Upload failure
+            # is non-fatal and never masks the test outcome.
             CODE=`cat /var/test-status/exit-code 2>/dev/null || echo 1`
             echo "Propagating e2e test exit code: ${CODE}"
             exit ${CODE}
