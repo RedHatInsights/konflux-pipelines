@@ -716,8 +716,6 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
-    - name: shared-workspace
-      workspace: workspace
     taskSpec:
       params:
       - description: The Trusted Artifact URI pointing to the artifact with the application source code.
@@ -732,57 +730,24 @@ spec:
       - description: Image to use for running unit tests
         name: UNIT_TEST_IMAGE
         type: string
-      workspaces:
-      - name: shared-workspace
-        mountPath: /var/workdir
+      volumes:
+      - name: test-workdir
+        emptyDir: {}
+      stepTemplate:
+        volumeMounts:
+        - name: test-workdir
+          mountPath: /var/workdir
       steps:
-      - name: workspace-permission-diagnostics
-        image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
-        env:
-        - name: HOME
-          value: /var/workdir
-        securityContext:
-          runAsUser: 1000
-          runAsGroup: 1000
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
-        command: ["/bin/sh", "-c"]
-        args:
-        - |
-          echo "=== Workspace Permission Diagnostics ==="
-          echo "--- id ---"
-          id
-          echo "--- /var/workdir ownership and mode ---"
-          ls -la /var/ | grep workdir
-          ls -la /var/workdir/ 2>/dev/null || echo "(empty or inaccessible)"
-          echo "--- stat /var/workdir ---"
-          stat /var/workdir
-          echo "--- .git check ---"
-          if [ -e /var/workdir/.git ]; then
-            ls -la /var/workdir/.git
-            stat /var/workdir/.git
-          else
-            echo "no .git present"
-          fi
-          echo "--- write test ---"
-          if test -w /var/workdir; then
-            echo "/var/workdir IS writable"
-          else
-            echo "/var/workdir is NOT writable"
-          fi
-          echo "=== End Diagnostics ==="
       - name: use-trusted-artifact
         image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
         env:
         - name: HOME
           value: /var/workdir
-        # Skip only the archive root entry: fsGroup grants write access, not
-        # ownership needed to restore the volume root's mode and timestamps.
+        # Skip the archive root entry: emptyDir is owned by the step UID/GID,
+        # so tar cannot restore the volume root's mode and timestamps.
         # --no-recursion keeps the exclusion from also excluding its contents.
         - name: TAR_OPTIONS
           value: "--no-recursion --anchored --exclude=."
-        # Extract source as the same identity that installs dependencies and runs tests.
-        # The PipelineRun must provide a workspace writable by this identity.
         securityContext:
           runAsUser: 1000
           runAsGroup: 1000
@@ -860,6 +825,8 @@ spec:
         value: $(params.e2e-readiness-timeout)
       - name: PROXY_READINESS_URL
         value: $(params.e2e-proxy-readiness-url)
+      - name: WORKSPACE_SETUP_SCRIPT
+        value: $(params.workspace-setup-script)
       - name: E2E_OCI_STORAGE
         value: $(params.output-image).e2e-results
     runAfter:
@@ -869,8 +836,6 @@ spec:
     workspaces:
     - name: basic-auth
       workspace: git-auth
-    - name: shared-workspace
-      workspace: workspace
     taskSpec:
       params:
         - description: The Trusted Artifact URI pointing to the test source code
@@ -928,13 +893,15 @@ spec:
         - description: OCI base URI for storing e2e test artifacts
           name: E2E_OCI_STORAGE
           type: string
+        - description: Script to run before E2E tests to set up workspace (e.g., npm install)
+          name: WORKSPACE_SETUP_SCRIPT
+          type: string
       results:
       - name: E2E_ARTIFACTS_URI
         description: OCI URI of uploaded e2e test artifacts (empty if no artifacts found)
-      workspaces:
-      - name: shared-workspace
-        mountPath: /var/workdir
       volumes:
+      - name: test-workdir
+        emptyDir: {}
       - name: proxy-config
         emptyDir: {}
       - name: test-status
@@ -946,6 +913,10 @@ spec:
           items:
           - key: routes
             path: routes
+      stepTemplate:
+        volumeMounts:
+        - name: test-workdir
+          mountPath: /var/workdir
       sidecars:
       - image: $(params.PROXY_IMAGE)
         name: frontend-dev-proxy
@@ -1069,6 +1040,42 @@ spec:
         securityContext:
           privileged: false
       steps:
+        - name: use-trusted-artifact
+          image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
+          env:
+          - name: HOME
+            value: /var/workdir
+          # Skip only the archive root entry: emptyDir is owned by the step
+          # UID/GID, so tar cannot restore the volume root's mode/timestamps.
+          - name: TAR_OPTIONS
+            value: "--no-recursion --anchored --exclude=."
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          args:
+          - use
+          - $(params.SOURCE_ARTIFACT)=/var/workdir
+        - name: workspace-setup
+          image: $(params.PLAYWRIGHT_IMAGE)
+          workingDir: /var/workdir
+          env:
+          - name: HOME
+            value: /var/workdir
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          script: |
+            #!/bin/bash
+            if [ -n "$(params.WORKSPACE_SETUP_SCRIPT)" ]; then
+              echo "Running workspace setup in E2E task..."
+              bash -c "$(params.WORKSPACE_SETUP_SCRIPT)"
+            else
+              echo "No workspace setup script provided, skipping..."
+            fi
         - name: setup-proxy-routes
           image: quay.io/quay/busybox
           env:
