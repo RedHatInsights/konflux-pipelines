@@ -127,6 +127,76 @@ spec:
     name: e2e-proxy-image
     type: string
     default: "quay.io/redhat-user-workloads/hcc-platex-services-tenant/frontend-development-proxy:latest"
+  - description: Port used by the frontend proxy sidecar
+    name: e2e-proxy-port
+    type: string
+    default: "1337"
+  - description: >-
+      Optional startup script for the frontend proxy sidecar. The default waits
+      for routes and the application, then starts Caddy with its template config.
+    name: e2e-proxy-startup-script
+    type: string
+    default: |
+      #!/bin/sh
+
+      # Guard against Tekton nop image replacement
+      # See: https://github.com/tektoncd/pipeline/issues/1347
+      if ! command -v caddy >/dev/null 2>&1; then
+        echo "Caddy not found - running in nop image, exiting gracefully"
+        exit 0
+      fi
+
+      echo "Waiting for /config/routes to be available..."
+      timeout=60
+      max_wait="${READINESS_TIMEOUT:-120}"
+      elapsed=0
+      while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
+        echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
+        sleep 2
+        elapsed=$((elapsed + 2))
+      done
+
+      if [ ! -f /config/routes ]; then
+        echo "ERROR: /config/routes not found after ${timeout} seconds"
+        exit 1
+      fi
+
+      echo "Config file found!"
+      echo "Routes content:"
+      cat /config/routes
+
+      # Export LOCAL_ROUTES environment variable from the file
+      export LOCAL_ROUTES="$(cat /config/routes)"
+      echo "LOCAL_ROUTES environment variable set"
+
+      # Validate HCC_ENV_URL is set
+      if [ -z "${HCC_ENV_URL}" ]; then
+        echo "ERROR: HCC_ENV_URL environment variable is not set!"
+        echo "This is required for proxying and other upstream routes."
+        exit 1
+      fi
+
+      # Wait for run-application to be ready on the configured port
+      readiness_url="http://127.0.0.1:${APP_PORT}${READINESS_PATH}"
+      echo "Waiting for run-application to be ready at ${readiness_url}..."
+      elapsed=0
+      while [ $elapsed -lt $max_wait ]; do
+        if wget -q -O /dev/null --timeout=2 "${readiness_url}" 2>/dev/null; then
+          echo "run-application is ready!"
+          break
+        fi
+        echo "Waiting for run-application... ($elapsed/$max_wait seconds)"
+        sleep 2
+        elapsed=$((elapsed + 2))
+      done
+
+      if [ $elapsed -ge $max_wait ]; then
+        echo "ERROR: run-application did not become ready at ${readiness_url} after ${max_wait} seconds"
+        exit 1
+      fi
+
+      echo "Starting frontend-development-proxy using container's template Caddyfile..."
+      caddy run --config /etc/caddy/Caddyfile
   - name: buildah-format
     default: docker
     type: string
@@ -811,6 +881,10 @@ spec:
         value: $(params.e2e-playwright-image)
       - name: PROXY_IMAGE
         value: $(params.e2e-proxy-image)
+      - name: PROXY_PORT
+        value: $(params.e2e-proxy-port)
+      - name: PROXY_STARTUP_SCRIPT
+        value: $(params.e2e-proxy-startup-script)
       - name: CREDENTIALS_SECRET
         value: $(params.e2e-credentials-secret)
       - name: HCC_ENV
@@ -869,6 +943,12 @@ spec:
         - description: Frontend proxy image
           name: PROXY_IMAGE
           type: string
+        - description: Port used by the frontend proxy sidecar
+          name: PROXY_PORT
+          type: string
+        - description: Startup script for the frontend proxy sidecar
+          name: PROXY_STARTUP_SCRIPT
+          type: string
         - description: Name of the secret containing e2e credentials
           name: CREDENTIALS_SECRET
           type: string
@@ -922,67 +1002,7 @@ spec:
         name: frontend-dev-proxy
         command: ["/bin/sh", "-c"]
         args:
-        - |
-          #!/bin/sh
-
-          # Guard against Tekton nop image replacement
-          # See: https://github.com/tektoncd/pipeline/issues/1347
-          if ! command -v caddy >/dev/null 2>&1; then
-            echo "Caddy not found - running in nop image, exiting gracefully"
-            exit 0
-          fi
-
-          echo "Waiting for /config/routes to be available..."
-          timeout=60
-          max_wait="${READINESS_TIMEOUT:-120}"
-          elapsed=0
-          while [ ! -f /config/routes ] && [ $elapsed -lt $timeout ]; do
-            echo "Config file not found, waiting... ($elapsed/$timeout seconds)"
-            sleep 2
-            elapsed=$((elapsed + 2))
-          done
-
-          if [ ! -f /config/routes ]; then
-            echo "ERROR: /config/routes not found after ${timeout} seconds"
-            exit 1
-          fi
-
-          echo "Config file found!"
-          echo "Routes content:"
-          cat /config/routes
-
-          # Export LOCAL_ROUTES environment variable from the file
-          export LOCAL_ROUTES="$(cat /config/routes)"
-          echo "LOCAL_ROUTES environment variable set"
-
-          # Validate HCC_ENV_URL is set
-          if [ -z "${HCC_ENV_URL}" ]; then
-            echo "ERROR: HCC_ENV_URL environment variable is not set!"
-            echo "This is required for proxying and other upstream routes."
-            exit 1
-          fi
-
-          # Wait for run-application to be ready on the configured port
-          readiness_url="http://127.0.0.1:${APP_PORT}${READINESS_PATH}"
-          echo "Waiting for run-application to be ready at ${readiness_url}..."
-          elapsed=0
-          while [ $elapsed -lt $max_wait ]; do
-            if wget -q -O /dev/null --timeout=2 "${readiness_url}" 2>/dev/null; then
-              echo "run-application is ready!"
-              break
-            fi
-            echo "Waiting for run-application... ($elapsed/$max_wait seconds)"
-            sleep 2
-            elapsed=$((elapsed + 2))
-          done
-
-          if [ $elapsed -ge $max_wait ]; then
-            echo "ERROR: run-application did not become ready at ${readiness_url} after ${max_wait} seconds"
-            exit 1
-          fi
-
-          echo "Starting frontend-development-proxy using container's template Caddyfile..."
-          caddy run --config /etc/caddy/Caddyfile
+        - $(params.PROXY_STARTUP_SCRIPT)
         envFrom:
         - secretRef:
             name: $(params.CREDENTIALS_SECRET)
@@ -999,7 +1019,7 @@ spec:
         - name: HCC_ENV
           value: $(params.HCC_ENV)
         - name: PROXY_PORT
-          value: "1337"
+          value: $(params.PROXY_PORT)
         # Backwards compatibility: explicit mappings for env vars that don't match envFrom conversion
         - name: E2E_USER
           valueFrom:

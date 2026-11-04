@@ -177,10 +177,44 @@ is carried through an internal variable (`_E2E_BASE_URL`) and only exported as
 from overriding `PLAYWRIGHT_BASE_URL` values supplied by `envFrom` or the runner
 image.
 
+### Proxy sidecar configuration
+
+The proxy sidecar exposes two parameters:
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `e2e-proxy-port` | `1337` | Value exported as `PROXY_PORT` for the proxy container. |
+| `e2e-proxy-startup-script` | Existing startup logic | Optional replacement for the proxy sidecar startup script. |
+
+The default startup script preserves existing behavior: it waits for the routes
+ConfigMap, loads `LOCAL_ROUTES`, checks `HCC_ENV_URL`, waits for the application
+on `e2e-app-port`, then starts Caddy. The script runs through `/bin/sh -c` in the
+proxy container. It can use `APP_PORT`, `READINESS_PATH`, `READINESS_TIMEOUT`,
+`HCC_ENV_URL`, `PROXY_PORT`, and the mounted `/config/routes` file.
+
+Setting `e2e-proxy-startup-script` replaces the default script completely. A
+custom script must provide any route setup, readiness checks, and proxy startup
+needed by its image. The selected `e2e-proxy-port` must also be supported by the
+proxy image's configuration. Keep the port in `e2e-proxy-readiness-url` aligned
+with this value when enabling the optional proxy readiness check.
+
+```yaml
+spec:
+  params:
+    - name: e2e-proxy-port
+      value: "1443"
+    - name: e2e-proxy-readiness-url
+      value: "https://stage.foo.redhat.com:1443/"
+```
+
+To override startup behavior, set `e2e-proxy-startup-script` to the complete
+shell script for the proxy image; the pipeline does not append the default
+startup logic.
+
 ### Readiness checks
 
-The proxy sidecar waits for the application to become ready before starting.
-Configure the check with:
+The default proxy startup script waits for the application to become ready
+before starting. Configure readiness with:
 
 | Parameter | Default | Description |
 | --- | --- | --- |
@@ -189,8 +223,9 @@ Configure the check with:
 | `e2e-readiness-timeout` | `120` | Maximum seconds to wait before failing |
 | `e2e-proxy-readiness-url` | `""` | Browser-facing URL to probe for proxy readiness (e.g. `https://stage.foo.redhat.com:1337/`) |
 
-The readiness check now uses the configured port instead of the previously
-hardcoded port 8000. Startup failures propagate to a failing check.
+The default proxy startup script uses the configured app port and readiness
+path. Startup failures propagate to a failing check. A custom startup script is
+responsible for its own readiness behavior.
 
 #### Proxy readiness
 
