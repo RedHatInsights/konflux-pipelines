@@ -1199,8 +1199,6 @@ spec:
             echo "=== E2E Test Diagnostics ==="
             echo "APPLICATION_IMAGE=${APPLICATION_IMAGE}"
             echo "IMAGE_DIGEST=${IMAGE_DIGEST}"
-            echo "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-<not set>}"
-            echo "==========================="
 
             # Only export PLAYWRIGHT_BASE_URL when explicitly set via e2e-base-url.
             # An empty Kubernetes env entry overrides envFrom/image-supplied values,
@@ -1208,6 +1206,8 @@ spec:
             if [ -n "${_E2E_BASE_URL}" ]; then
               export PLAYWRIGHT_BASE_URL="${_E2E_BASE_URL}"
             fi
+            echo "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-<not set>}"
+            echo "==========================="
 
             # --- Proxy readiness check (optional) ---
             # When e2e-proxy-readiness-url is set, wait for the proxy to respond

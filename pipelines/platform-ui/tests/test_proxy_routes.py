@@ -166,6 +166,85 @@ class ProxyRoutesTest(unittest.TestCase):
             finally:
                 install.wait(timeout=5)
 
+    def test_default_proxy_fails_clearly_when_application_is_not_ready(self):
+        startup_script = next(
+            parameter["default"]
+            for parameter in self.pipeline["spec"]["params"]
+            if parameter["name"] == "e2e-proxy-startup-script"
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            route_path = root / "routes"
+            route_path.write_text("handle /example/* {\n}\n", encoding="utf-8")
+            bin_directory = root / "bin"
+            bin_directory.mkdir()
+            caddy = bin_directory / "caddy"
+            caddy.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            caddy.chmod(0o755)
+            wget = bin_directory / "wget"
+            wget.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            wget.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{bin_directory}:{env['PATH']}",
+                    "APP_PORT": "8000",
+                    "READINESS_PATH": "",
+                    "READINESS_TIMEOUT": "0",
+                    "HCC_ENV_URL": "https://example.test",
+                }
+            )
+            script = startup_script.replace("/config/routes", str(route_path))
+            result = subprocess.run(
+                ["/bin/sh", "-c", script],
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "ERROR: run-application did not become ready at "
+                "http://127.0.0.1:8000 after 0 seconds",
+                result.stdout,
+            )
+
+    def test_effective_playwright_base_url_is_logged_after_conditional_export(self):
+        e2e_step = next(step for step in self.steps if step.get("name") == "e2e-tests")
+        script = e2e_step["script"]
+        export_index = script.index('export PLAYWRIGHT_BASE_URL="${_E2E_BASE_URL}"')
+        log_index = script.index('echo "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-<not set>}"')
+        self.assertLess(export_index, log_index)
+
+        diagnostics = script.split("# --- Proxy readiness check", 1)[0]
+        cases = [
+            ("https://configured.example", "https://configured.example"),
+            ("", "https://from-image.example"),
+        ]
+        for configured, inherited in cases:
+            with self.subTest(configured=configured):
+                env = os.environ.copy()
+                env.update(
+                    {
+                        "_E2E_BASE_URL": configured,
+                        "PLAYWRIGHT_BASE_URL": inherited,
+                        "APPLICATION_IMAGE": "example/image@sha256:abc",
+                        "IMAGE_DIGEST": "sha256:abc",
+                    }
+                )
+                result = subprocess.run(
+                    ["/bin/bash", "-c", diagnostics],
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(f"PLAYWRIGHT_BASE_URL={inherited}", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
