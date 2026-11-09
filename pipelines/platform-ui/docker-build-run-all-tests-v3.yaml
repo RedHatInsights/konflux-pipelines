@@ -161,6 +161,11 @@ spec:
         exit 1
       fi
 
+      if [ ! -s /config/routes ]; then
+        echo "ERROR: /config/routes is empty"
+        exit 1
+      fi
+
       echo "Config file found!"
       echo "Routes content:"
       cat /config/routes
@@ -1048,6 +1053,12 @@ spec:
         volumeMounts:
         - name: proxy-config
           mountPath: /config
+        # Keep Caddy's autosave writable while exposing the route ConfigMap
+        # directly. A subPath file mount avoids making all of /config readonly.
+        - name: proxy-routes-configmap
+          mountPath: /config/routes
+          subPath: routes
+          readOnly: true
       - name: run-application
         image: $(params.APPLICATION_IMAGE)
         command: ["$(params.APP_COMMAND)"]
@@ -1060,6 +1071,36 @@ spec:
         securityContext:
           privileged: false
       steps:
+        - name: validate-proxy-routes
+          image: quay.io/quay/busybox
+          env:
+          - name: HOME
+            value: /tmp
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          script: |
+            #!/bin/sh
+            set -e
+
+            if [ ! -f /configmap-data/routes ]; then
+              echo "ERROR: ConfigMap routes file not found at /configmap-data/routes"
+              echo "Please ensure the ConfigMap is properly configured with a 'routes' key"
+              exit 1
+            fi
+
+            if [ ! -s /configmap-data/routes ]; then
+              echo "ERROR: ConfigMap routes file is empty"
+              exit 1
+            fi
+
+            echo "Proxy routes ConfigMap is present and nonempty"
+          volumeMounts:
+          - name: proxy-routes-configmap
+            mountPath: /configmap-data
+            readOnly: true
         - name: use-trusted-artifact
           image: quay.io/redhat-appstudio/build-trusted-artifacts:latest@sha256:9b180776a41d9a22a1c51539f1647c60defbbd55b44bbebdd4130e33512d8b0d
           env:
@@ -1096,42 +1137,6 @@ spec:
             else
               echo "No workspace setup script provided, skipping..."
             fi
-        - name: setup-proxy-routes
-          image: quay.io/quay/busybox
-          env:
-          - name: HOME
-            value: /tmp
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-          script: |
-            #!/bin/sh
-            set -e
-
-            # Check if ConfigMap data is available
-            if [ ! -f /configmap-data/routes ]; then
-              echo "ERROR: ConfigMap routes file not found at /configmap-data/routes"
-              echo "Please ensure the ConfigMap is properly configured with a 'routes' key"
-              exit 1
-            fi
-
-            if [ ! -s /configmap-data/routes ]; then
-              echo "ERROR: ConfigMap routes file is empty"
-              exit 1
-            fi
-
-            echo "Using routes from ConfigMap..."
-            cp /configmap-data/routes /config/routes
-            chmod 644 /config/routes
-            echo "Routes content:"
-            cat /config/routes
-          volumeMounts:
-            - name: proxy-config
-              mountPath: /config
-            - name: proxy-routes-configmap
-              mountPath: /configmap-data
         - image: $(params.PLAYWRIGHT_IMAGE)
           envFrom:
             - secretRef:

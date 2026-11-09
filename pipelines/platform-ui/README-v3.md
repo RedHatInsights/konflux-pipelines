@@ -191,6 +191,10 @@ ConfigMap, loads `LOCAL_ROUTES`, checks `HCC_ENV_URL`, waits for the application
 on `e2e-app-port`, then starts Caddy. The script runs through `/bin/sh -c` in the
 proxy container. It can use `APP_PORT`, `READINESS_PATH`, `READINESS_TIMEOUT`,
 `HCC_ENV_URL`, `PROXY_PORT`, and the mounted `/config/routes` file.
+The routes key is mounted directly at `/config/routes` before source extraction
+or dependency installation; only that file is read-only, leaving `/config`
+writable for Caddy autosave. An early validation step rejects missing or empty
+routes before either extraction or setup begins.
 
 Setting `e2e-proxy-startup-script` replaces the default script completely. A
 custom script must provide any route setup, readiness checks, and proxy startup
