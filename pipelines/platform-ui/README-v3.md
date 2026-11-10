@@ -121,9 +121,12 @@ Its default is `https://console.stage.redhat.com`. Keep secret values out of log
 
 ## Build-target selection
 
-The optional `target-stage` parameter forwards `--target` to the Buildah task,
-selecting a named stage in your Dockerfile. Default is empty, which preserves
-the Dockerfile's last stage (backward-compatible).
+The optional `target-stage` parameter in v3 and
+`docker-build-run-unit-tests.yaml` forwards `TARGET_STAGE` to the Buildah and
+Coverity tasks. Buildah adds `--target=<stage>` only when the value is
+non-empty. Empty therefore preserves Dockerfile behavior and builds through its
+final stage (backward-compatible); it does not select a stage named `artifact`
+unless that stage is the Dockerfile's final stage.
 
 ```yaml
 spec:
@@ -138,8 +141,10 @@ spec:
 - `hermetic` remains `"false"` by default. Only explicit `hermetic: "true"`
   enables network isolation.
 - `prefetch-input` alone does not enable hermetic execution.
-- Empty target preserves the Dockerfile default; the sast-coverity-check task
-  also receives the target to scan the correct stage.
+- Empty target preserves the Dockerfile's final-stage behavior. Set `deploy` or
+  `artifact` explicitly to select those named stages when the Dockerfile defines
+  them. The `sast-coverity-check` task receives the same target and builds the
+  same selected stage.
 
 ### Examples
 
@@ -147,8 +152,14 @@ spec:
 | --- | --- | --- | --- | --- |
 | Existing non-hermetic consumer | `"false"` (default) | `""` (default) | `""` (default) | Default Dockerfile output, unchanged |
 | Explicit target without hermetic | `"false"` | `""` | `deploy` | Builds deploy stage, network available |
+| Explicit artifact target | `"false"` | `""` | `artifact` | Builds artifact stage, network available |
 | Hermetic deploy image with npm prefetch | `"true"` | `npm` | `deploy` | Hermetic build of deploy stage |
-| Hermetic artifact image (SC components) | `"true"` | `npm` | `""` | Default stage (artifact in Dockerfile.hermetic) |
+| Hermetic artifact image (SC components) | `"true"` | `npm` | `artifact` | Hermetic build of artifact stage |
+
+If a Dockerfile intentionally places its artifact output last, leaving
+`target-stage` empty remains equivalent to the historical behavior. Prefer an
+explicit stage name when the consumer requires `deploy` or `artifact` regardless
+of stage ordering.
 
 ## Immutable E2E image reference
 
