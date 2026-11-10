@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 
@@ -11,6 +12,14 @@ import yaml
 
 
 PIPELINE_PATH = Path(__file__).parents[1] / "docker-build-run-all-tests-v3.yaml"
+
+
+def wait_for_path(path, timeout=5):
+    """Wait for a child process signal; timeout only detects hangs."""
+    deadline = time.monotonic() + timeout
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    return path.exists()
 
 
 class ProxyRoutesTest(unittest.TestCase):
@@ -92,7 +101,7 @@ class ProxyRoutesTest(unittest.TestCase):
             )
             self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
 
-    def test_proxy_starts_while_workspace_install_is_delayed(self):
+    def test_proxy_starts_while_workspace_install_is_blocked(self):
         """A mounted route must let the sidecar start before npm setup finishes."""
         startup_script = self.pipeline["spec"]["params"]
         startup_script = next(
@@ -124,21 +133,23 @@ class ProxyRoutesTest(unittest.TestCase):
             )
             caddy.chmod(0o755)
 
-            install_started = root / "install-started"
             install_done = root / "install-done"
             proxy_started = root / "proxy-started"
-            install_code = (
-                "import pathlib, time; "
-                f"pathlib.Path({str(install_started)!r}).touch(); "
-                "time.sleep(1.5); "
-                f"pathlib.Path({str(install_done)!r}).touch()"
-            )
-            install = subprocess.Popen(["python3", "-c", install_code])
+            install_started = threading.Event()
+            release_install = threading.Event()
+
+            def simulate_install():
+                install_started.set()
+                release_install.wait()
+                install_done.touch()
+
+            install = threading.Thread(target=simulate_install, daemon=True)
+            install.start()
+            proxy = None
             try:
-                deadline = time.monotonic() + 5
-                while not install_started.exists() and time.monotonic() < deadline:
-                    time.sleep(0.01)
-                self.assertTrue(install_started.exists(), "delayed setup did not start")
+                self.assertTrue(
+                    install_started.wait(timeout=5), "workspace install did not start"
+                )
 
                 env = os.environ.copy()
                 env.update(
@@ -153,18 +164,27 @@ class ProxyRoutesTest(unittest.TestCase):
                     }
                 )
                 script = startup_script.replace("/config/routes", str(route_path))
-                proxy = subprocess.run(
+                proxy = subprocess.Popen(
                     ["/bin/sh", "-c", script],
                     env=env,
                     text=True,
-                    capture_output=True,
-                    timeout=5,
-                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
-                self.assertEqual(proxy.returncode, 0, proxy.stdout + proxy.stderr)
+                self.assertTrue(wait_for_path(proxy_started), "proxy did not start")
+                self.assertFalse(install_done.exists(), "workspace install was released")
+                self.assertTrue(install.is_alive(), "workspace install is not blocked")
+
+                stdout, stderr = proxy.communicate(timeout=5)
+                self.assertEqual(proxy.returncode, 0, stdout + stderr)
                 self.assertEqual(proxy_started.read_text(encoding="utf-8"), "before")
             finally:
-                install.wait(timeout=5)
+                if proxy is not None and proxy.poll() is None:
+                    proxy.kill()
+                    proxy.communicate()
+                release_install.set()
+                install.join(timeout=5)
+                self.assertFalse(install.is_alive(), "workspace install did not stop")
 
     def test_default_proxy_fails_clearly_when_application_is_not_ready(self):
         startup_script = next(
