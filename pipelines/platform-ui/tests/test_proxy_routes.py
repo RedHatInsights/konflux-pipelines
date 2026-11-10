@@ -1,0 +1,270 @@
+"""Regression coverage for early E2E proxy route availability."""
+
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import threading
+import time
+import unittest
+
+import yaml
+
+
+PIPELINE_PATH = Path(__file__).parents[1] / "docker-build-run-all-tests-v3.yaml"
+
+
+def wait_for_path(path, timeout=5):
+    """Wait for a child process signal; timeout only detects hangs."""
+    deadline = time.monotonic() + timeout
+    while not path.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    return path.exists()
+
+
+class ProxyRoutesTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with PIPELINE_PATH.open(encoding="utf-8") as pipeline_file:
+            cls.pipeline = yaml.safe_load(pipeline_file)
+
+        cls.task = next(
+            task
+            for task in cls.pipeline["spec"]["tasks"]
+            if task["name"] == "run-e2e-tests"
+        )["taskSpec"]
+        cls.steps = cls.task["steps"]
+        cls.volumes = {volume["name"]: volume for volume in cls.task["volumes"]}
+        cls.proxy = next(
+            sidecar
+            for sidecar in cls.task["sidecars"]
+            if sidecar["name"] == "frontend-dev-proxy"
+        )
+
+    def test_configmap_is_mounted_directly_without_hiding_writable_config(self):
+        route_volume = self.volumes["proxy-routes-configmap"]
+        self.assertEqual(
+            route_volume["configMap"]["items"], [{"key": "routes", "path": "routes"}]
+        )
+
+        mounts = {mount["mountPath"]: mount for mount in self.proxy["volumeMounts"]}
+        self.assertEqual(mounts["/config"]["name"], "proxy-config")
+        self.assertNotIn("readOnly", mounts["/config"])
+        self.assertEqual(mounts["/config/routes"]["name"], "proxy-routes-configmap")
+        self.assertEqual(mounts["/config/routes"]["subPath"], "routes")
+        self.assertTrue(mounts["/config/routes"]["readOnly"])
+        self.assertEqual(self.volumes["proxy-config"]["emptyDir"], {})
+
+    def test_route_validation_precedes_source_extraction_and_install(self):
+        names = [step.get("name") for step in self.steps]
+        validation_index = names.index("validate-proxy-routes")
+        extraction_index = names.index("use-trusted-artifact")
+        setup_index = names.index("workspace-setup")
+        self.assertLess(validation_index, extraction_index)
+        self.assertLess(validation_index, setup_index)
+
+        validation = self.steps[validation_index]
+        self.assertTrue(validation["securityContext"]["runAsNonRoot"])
+        self.assertEqual(validation["securityContext"]["runAsUser"], 1000)
+        self.assertIn("[ ! -f /configmap-data/routes ]", validation["script"])
+        self.assertIn("[ ! -s /configmap-data/routes ]", validation["script"])
+        self.assertNotIn("cp /configmap-data/routes", validation["script"])
+        self.assertIn(
+            {"name": "proxy-routes-configmap", "mountPath": "/configmap-data", "readOnly": True},
+            validation["volumeMounts"],
+        )
+
+    def test_missing_and_empty_routes_fail_validation(self):
+        validation_script = self.steps[0]["script"]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            route_path = Path(temporary_directory) / "routes"
+            script = validation_script.replace(
+                "/configmap-data/routes", str(route_path)
+            )
+
+            missing = subprocess.run(
+                ["/bin/sh", "-c", script], text=True, capture_output=True, check=False
+            )
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn("routes file not found", missing.stdout)
+
+            route_path.touch()
+            empty = subprocess.run(
+                ["/bin/sh", "-c", script], text=True, capture_output=True, check=False
+            )
+            self.assertNotEqual(empty.returncode, 0)
+            self.assertIn("routes file is empty", empty.stdout)
+
+            route_path.write_text("handle /example/* {\n}\n", encoding="utf-8")
+            valid = subprocess.run(
+                ["/bin/sh", "-c", script], text=True, capture_output=True, check=False
+            )
+            self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+
+    def test_proxy_starts_while_workspace_install_is_blocked(self):
+        """A mounted route must let the sidecar start before npm setup finishes."""
+        startup_script = self.pipeline["spec"]["params"]
+        startup_script = next(
+            parameter["default"]
+            for parameter in startup_script
+            if parameter["name"] == "e2e-proxy-startup-script"
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            route_path = root / "routes"
+            route_path.write_text("handle /example/* {\n}\n", encoding="utf-8")
+            bin_directory = root / "bin"
+            bin_directory.mkdir()
+
+            wget = bin_directory / "wget"
+            wget.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            wget.chmod(0o755)
+
+            caddy = bin_directory / "caddy"
+            caddy.write_text(
+                "#!/bin/sh\n"
+                'if [ -f "$INSTALL_DONE" ]; then\n'
+                '  printf after > "$PROXY_STARTED"\n'
+                "else\n"
+                '  printf before > "$PROXY_STARTED"\n'
+                "fi\n",
+                encoding="utf-8",
+            )
+            caddy.chmod(0o755)
+
+            install_done = root / "install-done"
+            proxy_started = root / "proxy-started"
+            install_started = threading.Event()
+            release_install = threading.Event()
+
+            def simulate_install():
+                install_started.set()
+                release_install.wait()
+                install_done.touch()
+
+            install = threading.Thread(target=simulate_install, daemon=True)
+            install.start()
+            proxy = None
+            try:
+                self.assertTrue(
+                    install_started.wait(timeout=5), "workspace install did not start"
+                )
+
+                env = os.environ.copy()
+                env.update(
+                    {
+                        "PATH": f"{bin_directory}:{env['PATH']}",
+                        "INSTALL_DONE": str(install_done),
+                        "PROXY_STARTED": str(proxy_started),
+                        "APP_PORT": "8000",
+                        "READINESS_PATH": "",
+                        "READINESS_TIMEOUT": "10",
+                        "HCC_ENV_URL": "https://example.test",
+                    }
+                )
+                script = startup_script.replace("/config/routes", str(route_path))
+                proxy = subprocess.Popen(
+                    ["/bin/sh", "-c", script],
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.assertTrue(wait_for_path(proxy_started), "proxy did not start")
+                self.assertFalse(install_done.exists(), "workspace install was released")
+                self.assertTrue(install.is_alive(), "workspace install is not blocked")
+
+                stdout, stderr = proxy.communicate(timeout=5)
+                self.assertEqual(proxy.returncode, 0, stdout + stderr)
+                self.assertEqual(proxy_started.read_text(encoding="utf-8"), "before")
+            finally:
+                if proxy is not None and proxy.poll() is None:
+                    proxy.kill()
+                    proxy.communicate()
+                release_install.set()
+                install.join(timeout=5)
+                self.assertFalse(install.is_alive(), "workspace install did not stop")
+
+    def test_default_proxy_fails_clearly_when_application_is_not_ready(self):
+        startup_script = next(
+            parameter["default"]
+            for parameter in self.pipeline["spec"]["params"]
+            if parameter["name"] == "e2e-proxy-startup-script"
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            route_path = root / "routes"
+            route_path.write_text("handle /example/* {\n}\n", encoding="utf-8")
+            bin_directory = root / "bin"
+            bin_directory.mkdir()
+            caddy = bin_directory / "caddy"
+            caddy.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            caddy.chmod(0o755)
+            wget = bin_directory / "wget"
+            wget.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            wget.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{bin_directory}:{env['PATH']}",
+                    "APP_PORT": "8000",
+                    "READINESS_PATH": "",
+                    "READINESS_TIMEOUT": "0",
+                    "HCC_ENV_URL": "https://example.test",
+                }
+            )
+            script = startup_script.replace("/config/routes", str(route_path))
+            result = subprocess.run(
+                ["/bin/sh", "-c", script],
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "ERROR: run-application did not become ready at "
+                "http://127.0.0.1:8000 after 0 seconds",
+                result.stdout,
+            )
+
+    def test_effective_playwright_base_url_is_logged_after_conditional_export(self):
+        e2e_step = next(step for step in self.steps if step.get("name") == "e2e-tests")
+        script = e2e_step["script"]
+        export_index = script.index('export PLAYWRIGHT_BASE_URL="${_E2E_BASE_URL}"')
+        log_index = script.index('echo "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-<not set>}"')
+        self.assertLess(export_index, log_index)
+
+        diagnostics = script.split("# --- Proxy readiness check", 1)[0]
+        cases = [
+            ("https://configured.example", "https://configured.example"),
+            ("", "https://from-image.example"),
+        ]
+        for configured, inherited in cases:
+            with self.subTest(configured=configured):
+                env = os.environ.copy()
+                env.update(
+                    {
+                        "_E2E_BASE_URL": configured,
+                        "PLAYWRIGHT_BASE_URL": inherited,
+                        "APPLICATION_IMAGE": "example/image@sha256:abc",
+                        "IMAGE_DIGEST": "sha256:abc",
+                    }
+                )
+                result = subprocess.run(
+                    ["/bin/bash", "-c", diagnostics],
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(f"PLAYWRIGHT_BASE_URL={inherited}", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
