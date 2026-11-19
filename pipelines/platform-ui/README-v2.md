@@ -44,6 +44,28 @@ For annotation references, update the file URL and use Pipeline name
 `docker-build-v2`. Bundle users must select a bundle containing v2 through the
 [bundles resolver](https://tekton.dev/docs/pipelines/bundle-resolver/).
 
+### Optional post-build image smoke check
+
+Set `run-post-build-smoke` to `"true"` to run a command inside the newly built
+application image after the image build and E2E tasks complete. The task uses
+`IMAGE_URL@IMAGE_DIGEST`, so it tests the exact image produced by the pipeline.
+The default is `"false"`.
+
+```yaml
+params:
+  - name: run-post-build-smoke
+    value: "true"
+  - name: post-build-smoke-command
+    value: node
+  - name: post-build-smoke-args
+    value:
+      - /path/in/image/smoke-test.mjs
+```
+
+The image must include the command and its arguments. The task runs as a
+non-root user. Adding the inline task can affect the pipeline's
+`trusted_task.trusted` policy result; check the policy result for your build.
+
 ### Application startup
 
 For example, start Caddy directly in a shell-less application image:
