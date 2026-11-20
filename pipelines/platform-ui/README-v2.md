@@ -44,6 +44,23 @@ For annotation references, update the file URL and use Pipeline name
 `docker-build-v2`. Bundle users must select a bundle containing v2 through the
 [bundles resolver](https://tekton.dev/docs/pipelines/bundle-resolver/).
 
+### Optional Playwright E2E tests
+
+The `enable-e2e-tests` parameter defaults to `"true"`, preserving the existing
+behavior for consumers that omit it. Set it to `"false"` to skip the E2E task.
+The `e2e-tests-script` and `run-app-command` parameters are still required, so
+consumers that skip E2E should pass empty strings for both.
+
+```yaml
+params:
+  - name: enable-e2e-tests
+    value: "false"
+  - name: e2e-tests-script
+    value: ""
+  - name: run-app-command
+    value: ""
+```
+
 ### Optional post-build image smoke check
 
 Set `run-post-build-smoke` to `"true"` to run a command inside the newly built
