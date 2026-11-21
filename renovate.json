@@ -4,5 +4,8 @@
   "tekton": {
     "includePaths": ["pipelines/**"],
     "schedule": ["at any time"]
-  }
+  },
+  // Renovate must not bump FullSend: an upgrade needs a `fullsend repos install` run plus manual
+  // edits in files the CLI doesn't manage, so a bump alone leaves it half-updated.
+  "ignoreDeps": ["fullsend-ai/fullsend"]
 }
