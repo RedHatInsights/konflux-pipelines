@@ -4,5 +4,6 @@
   "tekton": {
     "includePaths": ["pipelines/**"],
     "schedule": ["at any time"]
-  }
+  },
+  "ignoreDeps": ["fullsend-ai/fullsend"]
 }
