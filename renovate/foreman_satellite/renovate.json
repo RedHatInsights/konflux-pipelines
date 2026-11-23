@@ -102,7 +102,7 @@
     {
       "matchBaseBranches": ["/^foreman-.*$/", "/^SATELLITE-.*$/"],
       "description": "Enable security alerts for application dependencies on foreman/satellite branches.",
-      "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile"],
+      "matchManagers": ["!tekton", "!dockerfile", "!rpm-lockfile", "!npm"],
       "matchJsonata": ["$exists(isVulnerabilityAlert) and isVulnerabilityAlert = true"],
       "enabled": true
     }
