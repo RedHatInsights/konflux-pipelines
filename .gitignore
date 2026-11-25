@@ -30,3 +30,6 @@ nb-configuration.xml
 # Emacs
 *~
 \#*\#
+
+# fullsend lint/run cache
+/.fullsend/.fullsend-cache/
